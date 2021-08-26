@@ -6,7 +6,7 @@ import (
 )
 
 type DB struct {
-	lock   policy.RWLock
+	policy.RWLock
 	index  index
 	locale []*Locale
 }
@@ -17,9 +17,14 @@ type Locale struct {
 	data  []byte
 }
 
+func New() *DB {
+	db := &DB{index: make(index)}
+	return db
+}
+
 func (db *DB) Set(locale, key, translation string) {
-	db.lock.Lock()
-	defer db.lock.Unlock()
+	db.Lock()
+	defer db.Unlock()
 	db.setLF(locale, key, translation)
 }
 
