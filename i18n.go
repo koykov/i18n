@@ -42,8 +42,8 @@ func (db *DB) Get(key string) string {
 	}
 	hkey := db.hasher.Sum64(key)
 
-	db.Lock()
-	defer db.Unlock()
+	db.RLock()
+	defer db.RUnlock()
 
 	var i int
 	if i = db.index.get(hkey); i == -1 {
