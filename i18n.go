@@ -57,8 +57,13 @@ func (db *DB) setLF(locale, key, translation string) {
 		loc.entry = append(loc.entry, ptr)
 		loc.index[key] = len(loc.entry) - 1
 	} else {
-		ptr := loc.entry[ei]
+		ptr := &loc.entry[ei]
 		if ptr.String() == translation {
+			return
+		}
+		if ptr.Len() >= len(translation) {
+			copy(loc.data[ptr.Offset():], translation)
+			ptr.SetLen(len(translation))
 			return
 		}
 		offset := len(loc.data)
