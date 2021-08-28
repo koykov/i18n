@@ -30,6 +30,7 @@ func (db *DB) Set(key, translation string) {
 		return
 	}
 	hkey := db.hasher.Sum64(key)
+
 	db.Lock()
 	defer db.Unlock()
 	db.setLF(hkey, translation)
