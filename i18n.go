@@ -52,6 +52,11 @@ func (db *DB) Get(key string) string {
 	return db.entry[i].TakeAddr(db.data).String()
 }
 
+func (db *DB) GetPlural(key string, count int) string {
+	// todo implement me
+	return ""
+}
+
 func (db *DB) setLF(hkey uint64, translation string) {
 	var i int
 	if i = db.index.get(hkey); i == -1 {
