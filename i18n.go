@@ -76,3 +76,7 @@ func (db *DB) setLF(hkey uint64, translation string) {
 		bp.Init(db.data, offset, len(translation))
 	}
 }
+
+func (db *DB) Begin() *TXN {
+	return txnP.Get()
+}
