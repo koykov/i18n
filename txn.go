@@ -54,6 +54,12 @@ func (t *TXN) Commit() {
 
 	t.db.Unlock()
 	t.db.SetPolicy(policy.LockFree)
+
+	txnP.Put(t)
+}
+
+func (t TXN) Size() int {
+	return len(t.buf)
 }
 
 func (t *TXN) Reset() {

@@ -83,5 +83,7 @@ func (db *DB) setLF(hkey uint64, translation string) {
 }
 
 func (db *DB) Begin() *TXN {
-	return txnP.Get()
+	txn := txnP.Get()
+	txn.db = db
+	return txn
 }
