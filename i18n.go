@@ -1,6 +1,7 @@
 package i18n
 
 import (
+	"strings"
 	"unsafe"
 
 	"github.com/koykov/byteptr"
@@ -110,7 +111,7 @@ func (db *DB) GetWR(key, def string, repl *PlaceholderReplacer) string {
 	if len(raw) == 0 {
 		raw = def
 	}
-	if repl != nil {
+	if len(raw) != 0 && repl != nil {
 		return repl.Commit(raw)
 	}
 	return raw
@@ -125,8 +126,61 @@ func (db *DB) GetPlural(key, def string, count int) string {
 //
 // See GetWR().
 func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer) string {
-	// todo implement me
-	return ""
+	if len(key) == 0 {
+		return ""
+	}
+	hkey := db.hasher.Sum64(key)
+
+	db.RLock()
+	raw := db.getLF(hkey)
+	db.RUnlock()
+
+	if len(raw) == 0 {
+		raw = def
+	}
+	if len(raw) == 0 {
+		return ""
+	}
+
+	// Handle separators.
+	var r string
+	prim, offset, poffset := false, 0, 0
+	for pos := db.scanUnescByte(raw, '|', offset); pos != -1; {
+		poffset = offset
+		offset = pos
+		if pos+1 < len(raw) {
+			switch raw[pos+1] {
+			case '{':
+				pos1 := db.scanUnescByte(raw, '}', pos+1)
+				_ = pos1
+				// todo parse exact plural rule
+			case '[':
+				pos1 := db.scanUnescByte(raw, ']', pos+1)
+				_ = pos1
+				// todo parse range plural rule
+			default:
+				prim = true
+				break
+			}
+		}
+	}
+	if prim {
+		switch count {
+		case 1:
+			r = raw[:offset]
+		default:
+			r = raw[offset+1:]
+		}
+	} else {
+		_ = poffset
+		// todo handle exact/range plural rule
+	}
+
+	if len(r) > 0 && repl != nil {
+		return repl.Commit(r)
+	}
+
+	return r
 }
 
 // Lock-free inner getter.
@@ -171,4 +225,15 @@ func (db *DB) txnIndir() *txn {
 		return nil
 	}
 	return (*txn)(db.txn)
+}
+
+func (db *DB) scanUnescByte(s string, b byte, offset int) int {
+	for si := strings.IndexByte(s[offset:], b); si != -1; {
+		offset = si
+		if si > 0 && s[si-1] == '\\' {
+			continue
+		}
+		return si
+	}
+	return -1
 }
