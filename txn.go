@@ -2,7 +2,6 @@ package i18n
 
 import (
 	"github.com/koykov/byteptr"
-	"github.com/koykov/policy"
 )
 
 type txn struct {
@@ -39,17 +38,12 @@ func (t *txn) commit() {
 	if t.db == nil || len(t.buf) == 0 {
 		return
 	}
-	t.db.SetPolicy(policy.Locked)
-	t.db.Lock()
 
 	_ = t.buf[len(t.buf)-1]
 	for i := 0; i < len(t.buf); i++ {
 		entry := &t.buf[i]
 		t.db.setLF(entry.hkey, entry.translation.String())
 	}
-
-	t.db.Unlock()
-	t.db.SetPolicy(policy.LockFree)
 
 	txnP.Put(t)
 }

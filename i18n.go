@@ -107,7 +107,11 @@ func (db *DB) Rollback() {
 
 func (db *DB) Commit() {
 	if txn := db.txnIndir(); txn != nil {
+		db.SetPolicy(policy.Locked)
+		db.Lock()
 		txn.commit()
+		db.Unlock()
+		db.SetPolicy(policy.LockFree)
 		txnP.put(txn)
 	}
 }
