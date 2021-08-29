@@ -5,40 +5,37 @@ import (
 	"github.com/koykov/policy"
 )
 
-type TXN struct {
+type txn struct {
 	db   *DB
 	buf  []txnRecord
 	data []byte
 }
 
 type txnRecord struct {
-	key, translation byteptr.Byteptr
+	hkey        uint64
+	translation byteptr.Byteptr
 }
 
-func (t *TXN) Set(key, translation string) {
+func (t *txn) set(key, translation string) {
 	if t.db == nil {
 		return
 	}
-	if old := t.db.Get(key); old == translation {
+	hkey := t.db.hasher.Sum64(key)
+	if old := t.db.getLF(hkey); old == translation {
 		return
 	}
 
-	offsetK := len(t.data)
-	t.data = append(t.data, key...)
-	bpK := byteptr.Byteptr{}
-	bpK.Init(t.data, offsetK, len(key))
-
-	offsetT := len(t.data)
+	offset := len(t.data)
 	t.data = append(t.data, translation...)
-	bpT := byteptr.Byteptr{}
-	bpT.Init(t.data, offsetT, len(translation))
+	bp := byteptr.Byteptr{}
+	bp.Init(t.data, offset, len(translation))
 	t.buf = append(t.buf, txnRecord{
-		key:         bpK,
-		translation: bpT,
+		hkey:        hkey,
+		translation: bp,
 	})
 }
 
-func (t *TXN) Commit() {
+func (t *txn) commit() {
 	if t.db == nil || len(t.buf) == 0 {
 		return
 	}
@@ -48,8 +45,7 @@ func (t *TXN) Commit() {
 	_ = t.buf[len(t.buf)-1]
 	for i := 0; i < len(t.buf); i++ {
 		entry := &t.buf[i]
-		hkey := t.db.hasher.Sum64(entry.key.String())
-		t.db.setLF(hkey, entry.translation.String())
+		t.db.setLF(entry.hkey, entry.translation.String())
 	}
 
 	t.db.Unlock()
@@ -58,11 +54,11 @@ func (t *TXN) Commit() {
 	txnP.Put(t)
 }
 
-func (t TXN) Size() int {
+func (t txn) size() int {
 	return len(t.buf)
 }
 
-func (t *TXN) Reset() {
+func (t *txn) reset() {
 	t.db = nil
 	t.buf = t.buf[:0]
 	t.data = t.data[:0]

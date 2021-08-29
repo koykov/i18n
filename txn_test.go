@@ -17,20 +17,25 @@ func TestTXN(t *testing.T) {
 		db.Set(fastconv.B2S(buf), "foo bar")
 	}
 
-	txn := db.Begin()
+	db.BeginTXN()
 	for i := 5; i < 15; i++ {
+		translation := "qwerty"
+		if i == 9 {
+			translation = "foo bar"
+		}
 		buf = strconv.AppendInt(buf[:3], int64(i), 10)
-		txn.Set(fastconv.B2S(buf), "qwerty")
+		db.Set(fastconv.B2S(buf), translation)
 	}
 
-	if txn.Size() != 10 {
-		t.Error("txn size failed, need 10 got", txn.Size())
+	txn := (*txn)(db.txn)
+	if txn.size() != 9 {
+		t.Error("txn size failed, need 9 got", txn.size())
 	}
-	if !bytes.Equal(txn.data, []byte("en.5qwertyen.6qwertyen.7qwertyen.8qwertyen.9qwertyen.10qwertyen.11qwertyen.12qwertyen.13qwertyen.14qwerty")) {
+	if !bytes.Equal(txn.data, []byte("qwertyqwertyqwertyqwertyqwertyqwertyqwertyqwertyqwerty")) {
 		t.Error("txn contents mismatch")
 	}
 
-	txn.Commit()
+	db.Commit()
 
 	buf = strconv.AppendInt(buf[:3], 12, 10)
 	s := db.Get(fastconv.B2S(buf))

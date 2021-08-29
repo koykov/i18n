@@ -10,17 +10,17 @@ var (
 	txnP txnPool
 )
 
-func (p *txnPool) Get() *TXN {
+func (p *txnPool) get() *txn {
 	v := p.Pool.Get()
 	if v != nil {
-		if t, ok := v.(*TXN); ok {
+		if t, ok := v.(*txn); ok {
 			return t
 		}
 	}
-	return &TXN{}
+	return &txn{}
 }
 
-func (p *txnPool) Put(x *TXN) {
-	x.Reset()
+func (p *txnPool) put(x *txn) {
+	x.reset()
 	p.Pool.Put(x)
 }
