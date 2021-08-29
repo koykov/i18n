@@ -9,9 +9,9 @@ type txn struct {
 	// Database to apply changes.
 	db *DB
 	// List of records to apply.
-	buf []txnRecord
+	log []txnRecord
 	// Transaction storage.
-	data []byte
+	buf []byte
 }
 
 // Key-translation pair of transaction.
@@ -30,11 +30,11 @@ func (t *txn) set(key, translation string) {
 		return
 	}
 
-	offset := len(t.data)
-	t.data = append(t.data, translation...)
+	offset := len(t.buf)
+	t.buf = append(t.buf, translation...)
 	bp := byteptr.Byteptr{}
-	bp.Init(t.data, offset, len(translation))
-	t.buf = append(t.buf, txnRecord{
+	bp.Init(t.buf, offset, len(translation))
+	t.log = append(t.log, txnRecord{
 		hkey:        hkey,
 		translation: bp,
 	})
@@ -44,27 +44,25 @@ func (t *txn) set(key, translation string) {
 //
 // Database must be locked.
 func (t *txn) commit() {
-	if t.db == nil || len(t.buf) == 0 {
+	if t.db == nil || len(t.log) == 0 {
 		return
 	}
 
-	_ = t.buf[len(t.buf)-1]
-	for i := 0; i < len(t.buf); i++ {
-		entry := &t.buf[i]
+	_ = t.log[len(t.log)-1]
+	for i := 0; i < len(t.log); i++ {
+		entry := &t.log[i]
 		t.db.setLF(entry.hkey, entry.translation.String())
 	}
-
-	txnP.Put(t)
 }
 
 // Get count of collected records.
 func (t txn) size() int {
-	return len(t.buf)
+	return len(t.log)
 }
 
 // Reset transaction data.
 func (t *txn) reset() {
 	t.db = nil
+	t.log = t.log[:0]
 	t.buf = t.buf[:0]
-	t.data = t.data[:0]
 }

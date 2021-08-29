@@ -31,14 +31,14 @@ func TestTXN(t *testing.T) {
 	if txn.size() != 9 {
 		t.Error("txn size failed, need 9 got", txn.size())
 	}
-	if !bytes.Equal(txn.data, []byte("qwertyqwertyqwertyqwertyqwertyqwertyqwertyqwertyqwerty")) {
+	if !bytes.Equal(txn.buf, []byte("qwertyqwertyqwertyqwertyqwertyqwertyqwertyqwertyqwerty")) {
 		t.Error("txn contents mismatch")
 	}
 
 	db.Commit()
 
 	buf = strconv.AppendInt(buf[:3], 12, 10)
-	s := db.Get(fastconv.B2S(buf))
+	s := db.Get(fastconv.B2S(buf), "")
 	if s != "qwerty" {
 		t.Error("db updated entry mismatch, need qwerty got", s)
 	}

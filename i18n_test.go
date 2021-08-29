@@ -23,7 +23,7 @@ func TestIO(t *testing.T) {
 
 		i := rand.Int63n(entries)
 		buf = strconv.AppendInt(buf[:3], i, 10)
-		s := db.Get(fastconv.B2S(buf))
+		s := db.Get(fastconv.B2S(buf), "")
 		if s != "Hello there!" {
 			t.Error("translation mismatch")
 		}
@@ -53,7 +53,7 @@ func BenchmarkIO(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			x := rand.Int63n(entries)
 			buf = strconv.AppendInt(buf[:3], x, 10)
-			s := db.Get(fastconv.B2S(buf))
+			s := db.Get(fastconv.B2S(buf), "")
 			if s != "Hello there!" {
 				b.Error("translation mismatch")
 			}

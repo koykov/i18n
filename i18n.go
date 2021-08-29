@@ -18,7 +18,7 @@ type DB struct {
 	// Translations pointer.
 	entry []byteptr.Byteptr
 	// Translations storage.
-	data []byte
+	buf []byte
 	// Transaction pointer.
 	txn unsafe.Pointer
 }
@@ -60,10 +60,10 @@ func (db *DB) setLF(hkey uint64, translation string) {
 	var i int
 	if i = db.index.get(hkey); i == -1 {
 		// Save new translation.
-		offset := len(db.data)
-		db.data = append(db.data, translation...)
+		offset := len(db.buf)
+		db.buf = append(db.buf, translation...)
 		bp := byteptr.Byteptr{}
-		bp.Init(db.data, offset, len(translation))
+		bp.Init(db.buf, offset, len(translation))
 		db.entry = append(db.entry, bp)
 		db.index[hkey] = len(db.entry) - 1
 	} else {
@@ -75,32 +75,56 @@ func (db *DB) setLF(hkey uint64, translation string) {
 		}
 		if bp.Len() >= len(translation) {
 			// Overwrite translation.
-			copy(db.data[bp.Offset():], translation)
+			copy(db.buf[bp.Offset():], translation)
 			bp.SetLen(len(translation))
 			return
 		}
 		// Write translation at the end of the storage.
-		offset := len(db.data)
-		db.data = append(db.data, translation...)
-		bp.Init(db.data, offset, len(translation))
+		offset := len(db.buf)
+		db.buf = append(db.buf, translation...)
+		bp.Init(db.buf, offset, len(translation))
 	}
 }
 
 // Get translation of key.
-func (db *DB) Get(key string) string {
+//
+// If translation doesn't exists, def will be used instead.
+func (db *DB) Get(key, def string) string {
+	return db.GetWR(key, def, nil)
+}
+
+// Get translation of key with replacer.
+//
+// If translation doesn't exists, def will be used instead.
+// Replacement rules will apply if repl will pass.
+func (db *DB) GetWR(key, def string, repl *PlaceholderReplacer) string {
 	if len(key) == 0 {
 		return ""
 	}
 	hkey := db.hasher.Sum64(key)
 
 	db.RLock()
-	defer db.RUnlock()
+	raw := db.getLF(hkey)
+	db.RUnlock()
 
-	return db.getLF(hkey)
+	if len(raw) == 0 {
+		raw = def
+	}
+	if repl != nil {
+		return repl.Commit(raw)
+	}
+	return raw
 }
 
 // Get translation using plural formula.
-func (db *DB) GetPlural(key string, count int) string {
+func (db *DB) GetPlural(key, def string, count int) string {
+	return db.GetPluralWR(key, def, count, nil)
+}
+
+// Get translation using plural formula with replacer.
+//
+// See GetWR().
+func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer) string {
 	// todo implement me
 	return ""
 }
@@ -111,7 +135,7 @@ func (db *DB) getLF(hkey uint64) string {
 	if i = db.index.get(hkey); i == -1 {
 		return ""
 	}
-	return db.entry[i].TakeAddr(db.data).String()
+	return db.entry[i].TakeAddr(db.buf).String()
 }
 
 // Begin new transaction.
