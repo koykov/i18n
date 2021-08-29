@@ -4,17 +4,23 @@ import (
 	"github.com/koykov/byteptr"
 )
 
+// i18n transaction.
 type txn struct {
-	db   *DB
-	buf  []txnRecord
+	// Database to apply changes.
+	db *DB
+	// List of records to apply.
+	buf []txnRecord
+	// Transaction storage.
 	data []byte
 }
 
+// Key-translation pair of transaction.
 type txnRecord struct {
 	hkey        uint64
 	translation byteptr.Byteptr
 }
 
+// Collect new translation.
 func (t *txn) set(key, translation string) {
 	if t.db == nil {
 		return
@@ -34,6 +40,9 @@ func (t *txn) set(key, translation string) {
 	})
 }
 
+// Apply all transaction changes at once.
+//
+// Database must be locked.
 func (t *txn) commit() {
 	if t.db == nil || len(t.buf) == 0 {
 		return
@@ -48,10 +57,12 @@ func (t *txn) commit() {
 	txnP.Put(t)
 }
 
+// Get count of collected records.
 func (t txn) size() int {
 	return len(t.buf)
 }
 
+// Reset transaction data.
 func (t *txn) reset() {
 	t.db = nil
 	t.buf = t.buf[:0]

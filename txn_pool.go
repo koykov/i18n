@@ -2,6 +2,9 @@ package i18n
 
 import "sync"
 
+// Simple transaction pool.
+//
+// Have wrappers of Get()/Put() methods.
 type txnPool struct {
 	sync.Pool
 }
