@@ -1,6 +1,7 @@
 package i18n
 
 import (
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -143,36 +144,91 @@ func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer)
 	}
 
 	// Handle separators.
-	var r string
-	prim, offset, poffset := false, 0, 0
-	for pos := db.scanUnescByte(raw, '|', offset); pos != -1; {
-		poffset = offset
-		offset = pos
-		if pos+1 < len(raw) {
-			switch raw[pos+1] {
-			case '{':
-				pos1 := db.scanUnescByte(raw, '}', pos+1)
-				_ = pos1
-				// todo parse exact plural rule
-			case '[':
-				pos1 := db.scanUnescByte(raw, ']', pos+1)
-				_ = pos1
-				// todo parse range plural rule
-			default:
+	prim, noloop := false, false
+	left, right, offset := 0, 0, 0
+	// Check first rule is exact rule.
+	if raw[offset] == '{' {
+		if ok, left1 := db.checkCB(raw, offset, count); ok {
+			left = left1
+			noloop = true
+			if right = db.scanUnescByte(raw, '|', offset); right == -1 {
+				right = len(raw)
+			}
+		}
+	}
+	// Check first rule is range rule.
+	if raw[offset] == '[' {
+		if ok, left1 := db.checkQB(raw, offset, count); ok {
+			left = left1
+			noloop = true
+			if right = db.scanUnescByte(raw, '|', offset); right == -1 {
+				right = len(raw)
+			}
+		}
+	}
+	if !noloop {
+		for {
+			left = offset
+			pos := db.scanUnescByte(raw, '|', offset)
+			if pos == -1 {
+				right = len(raw)
+				break
+			}
+			if raw[offset] == '{' || raw[offset] == '[' {
+				if ok, _ := db.checkCB(raw, offset, count); ok {
+					right = pos
+					break
+				}
+				if ok, _ := db.checkQB(raw, offset, count); ok {
+					right = pos
+					break
+				}
+			} else {
+				right = pos
 				prim = true
+				break
+			}
+			if offset = pos; offset == len(raw) {
 				break
 			}
 		}
 	}
+
+	// var r string
+	// prim, offset, poffset := false, 0, 0
+	// for pos := db.scanUnescByte(raw, '|', offset); pos != -1; {
+	// 	brk := false
+	// 	poffset = offset
+	// 	offset = pos
+	// 	if pos+1 < len(raw) {
+	// 		switch raw[pos+1] {
+	// 		case '{':
+	// 			pos1 := db.scanUnescByte(raw, '}', pos+1)
+	// 			_ = pos1
+	// 			// todo parse exact plural rule
+	// 		case '[':
+	// 			pos1 := db.scanUnescByte(raw, ']', pos+1)
+	// 			_ = pos1
+	// 			// todo parse range plural rule
+	// 		default:
+	// 			prim = true
+	// 			brk = true
+	// 		}
+	// 	}
+	// 	if brk {
+	// 		break
+	// 	}
+	// }
+	var r string
 	if prim {
 		switch count {
 		case 1:
-			r = raw[:offset]
+			r = raw[left:right]
 		default:
-			r = raw[offset+1:]
+			r = raw[right+1:]
 		}
 	} else {
-		_ = poffset
+		r = raw[left:right]
 		// todo handle exact/range plural rule
 	}
 
@@ -229,11 +285,35 @@ func (db *DB) txnIndir() *txn {
 
 func (db *DB) scanUnescByte(s string, b byte, offset int) int {
 	for si := strings.IndexByte(s[offset:], b); si != -1; {
-		offset = si
 		if si > 0 && s[si-1] == '\\' {
+			offset = si
 			continue
 		}
-		return si
+		return offset + si
 	}
 	return -1
+}
+
+// Check curly brackets plural rule.
+func (db *DB) checkCB(s string, offset, count int) (bool, int) {
+	if s[offset] != '{' {
+		return false, -1
+	}
+	pos := db.scanUnescByte(s, '}', offset+1)
+	if pos == -1 {
+		return false, -1
+	}
+	n := s[offset+1 : pos]
+	if i, err := strconv.ParseInt(n, 10, 64); err == nil {
+		if len(s) > pos+2 && s[pos+1] == ' ' {
+			pos += 2
+		}
+		return int(i) == count, pos
+	}
+	return false, -1
+}
+
+// Check square brackets plural rule.
+func (db *DB) checkQB(s string, offset, count int) (bool, int) {
+	return false, -1
 }

@@ -67,3 +67,26 @@ func BenchmarkIO(b *testing.B) {
 	b.Run("10K", func(b *testing.B) { benchIO(b, 10000) })
 	b.Run("100K", func(b *testing.B) { benchIO(b, 100000) })
 }
+
+func TestPlural(t *testing.T) {
+	testPlural := func(db *DB, key, def string, count int, expect string) {
+		repl := PlaceholderReplacer{}
+		repl.AddKV("!count", strconv.Itoa(count))
+		s := db.GetPluralWR(key, def, count, &repl)
+		if s != expect {
+			t.Errorf("plural mismatch, need %s got %s", expect, s)
+		}
+	}
+
+	db, _ := New(fnv.Hasher{})
+	db.SetPolicy(policy.Locked)
+	db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
+	db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
+	db.Set("ru.user.bag.apples", "{0} У вас нет яблок|{1} У вас !count яблоко|[2,4] У вас !count яблока|[5,20] У вас !count яблок|{21} У вас !count яблоко|[21,24] У вас !count яблока|[25,*] У вас много яблок")
+	db.SetPolicy(policy.LockFree)
+
+	t.Run("en.simple", func(t *testing.T) { testPlural(db, "en.user.bag.apples_flag", "", 1, "You have one apple") })
+	t.Run("en.placeholder[1]", func(t *testing.T) { testPlural(db, "en.user.bag.apples", "", 1, "You have 1 apple") })
+	t.Run("en.placeholder[5]", func(t *testing.T) { testPlural(db, "en.user.bag.apples", "", 5, "You have 5 apples") })
+	t.Run("ru.placeholder[0]", func(t *testing.T) { testPlural(db, "ru.user.bag.apples", "", 0, "У вас нет яблок") })
+}
