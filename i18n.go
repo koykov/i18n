@@ -97,7 +97,7 @@ func (db *DB) makeEntry(off, ln int) entry {
 		}
 		s1 := s[o:pos]
 		if s1[0] == '{' {
-			if lo, skip, ok := db.checkCB1(s1, 1); ok {
+			if lo, skip, ok := db.checkCB(s1, 1); ok {
 				o1 = skip
 				r.lo = lo
 				r.hi = r.lo + 1
@@ -105,7 +105,7 @@ func (db *DB) makeEntry(off, ln int) entry {
 			}
 		}
 		if !cb && s1[0] == '[' {
-			if lo, hi, skip, ok := db.checkQB1(s1, 1); ok {
+			if lo, hi, skip, ok := db.checkQB(s1, 1); ok {
 				o1 = skip
 				r.lo = lo
 				r.hi = hi
@@ -273,7 +273,7 @@ func (db *DB) scanUnescByte(s []byte, b byte, offset int) int {
 	return -1
 }
 
-func (db *DB) checkCB1(p []byte, off int) (int32, int, bool) {
+func (db *DB) checkCB(p []byte, off int) (int32, int, bool) {
 	if pos := db.scanUnescByte(p, '}', off); pos != -1 {
 		if raw := p[off:pos]; len(raw) > 0 {
 			if i64, err := strconv.ParseInt(fastconv.B2S(raw), 10, 32); err == nil {
@@ -287,7 +287,7 @@ func (db *DB) checkCB1(p []byte, off int) (int32, int, bool) {
 	return 0, 0, false
 }
 
-func (db *DB) checkQB1(p []byte, off int) (lo int32, hi int32, skip int, ok bool) {
+func (db *DB) checkQB(p []byte, off int) (lo int32, hi int32, skip int, ok bool) {
 	if pos := db.scanUnescByte(p, ']', off); pos != -1 {
 		skip = pos + 1
 		if p[pos+1] == ' ' {
