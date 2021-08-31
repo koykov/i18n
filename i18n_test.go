@@ -82,11 +82,20 @@ func TestPlural(t *testing.T) {
 	db.SetPolicy(policy.Locked)
 	db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
 	db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
-	db.Set("ru.user.bag.apples", "{0} У вас нет яблок|{1} У вас !count яблоко|[2,4] У вас !count яблока|[5,20] У вас !count яблок|{21} У вас !count яблоко|[21,24] У вас !count яблока|[25,*] У вас много яблок")
+	db.Set("ru.user.bag.apples", "{0} У вас нет яблок|{1} У вас !count яблоко|[2,5] У вас !count яблока|[5,21] У вас !count яблок|{21} У вас !count яблоко|[22,25] У вас !count яблока|[25,*] У вас много яблок")
 	db.SetPolicy(policy.LockFree)
 
-	t.Run("en.simple", func(t *testing.T) { testPlural(db, "en.user.bag.apples_flag", "", 1, "You have one apple") })
+	t.Run("en.simple[1]", func(t *testing.T) { testPlural(db, "en.user.bag.apples_flag", "", 1, "You have one apple") })
+	t.Run("en.simple[2]", func(t *testing.T) { testPlural(db, "en.user.bag.apples_flag", "", 2, "You have many apples") })
 	t.Run("en.placeholder[1]", func(t *testing.T) { testPlural(db, "en.user.bag.apples", "", 1, "You have 1 apple") })
 	t.Run("en.placeholder[5]", func(t *testing.T) { testPlural(db, "en.user.bag.apples", "", 5, "You have 5 apples") })
 	t.Run("ru.placeholder[0]", func(t *testing.T) { testPlural(db, "ru.user.bag.apples", "", 0, "У вас нет яблок") })
+	t.Run("ru.placeholder[1]", func(t *testing.T) { testPlural(db, "ru.user.bag.apples", "", 1, "У вас 1 яблоко") })
+	t.Run("ru.placeholder[3]", func(t *testing.T) { testPlural(db, "ru.user.bag.apples", "", 3, "У вас 3 яблока") })
+	t.Run("ru.placeholder[11]", func(t *testing.T) { testPlural(db, "ru.user.bag.apples", "", 11, "У вас 11 яблок") })
+	t.Run("ru.placeholder[21]", func(t *testing.T) { testPlural(db, "ru.user.bag.apples", "", 21, "У вас 21 яблоко") })
+	t.Run("ru.placeholder[24]", func(t *testing.T) { testPlural(db, "ru.user.bag.apples", "", 24, "У вас 24 яблока") })
+	t.Run("ru.placeholder[999999]", func(t *testing.T) {
+		testPlural(db, "ru.user.bag.apples", "", 999999, "У вас много яблок")
+	})
 }

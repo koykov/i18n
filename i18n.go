@@ -1,11 +1,13 @@
 package i18n
 
 import (
+	"bytes"
+	"math"
 	"strconv"
-	"strings"
 	"unsafe"
 
 	"github.com/koykov/byteptr"
+	"github.com/koykov/fastconv"
 	"github.com/koykov/hash"
 	"github.com/koykov/policy"
 )
@@ -17,13 +19,22 @@ type DB struct {
 	hasher hash.Hasher
 	// Translations index.
 	index index
-	// Translations pointer.
-	entry []byteptr.Byteptr
+	// Rules storage.
+	rules []rule
 	// Translations storage.
 	buf []byte
 	// Transaction pointer.
 	txn unsafe.Pointer
 }
+
+type rule struct {
+	lo, hi int32
+	bp     byteptr.Byteptr
+}
+
+var (
+	inf = []byte("*")
+)
 
 // Make new DB.
 func New(hasher hash.Hasher) (*DB, error) {
@@ -59,40 +70,74 @@ func (db *DB) Set(key, translation string) {
 
 // Lock-free inner setter.
 func (db *DB) setLF(hkey uint64, translation string) {
-	var i int
-	if i = db.index.get(hkey); i == -1 {
+	var e entry
+	if e = db.index.get(hkey); e == 0 {
 		// Save new translation.
 		offset := len(db.buf)
 		db.buf = append(db.buf, translation...)
-		bp := byteptr.Byteptr{}
-		bp.Init(db.buf, offset, len(translation))
-		db.entry = append(db.entry, bp)
-		db.index[hkey] = len(db.entry) - 1
+		e = db.makeEntry(offset, len(translation))
+		db.index[hkey] = e
 	} else {
 		// Update existing translation.
-		bp := &db.entry[i]
-		if bp.String() == translation {
-			// Translation already exists.
-			return
-		}
-		if bp.Len() >= len(translation) {
-			// Overwrite translation.
-			copy(db.buf[bp.Offset():], translation)
-			bp.SetLen(len(translation))
-			return
-		}
-		// Write translation at the end of the storage.
-		offset := len(db.buf)
-		db.buf = append(db.buf, translation...)
-		bp.Init(db.buf, offset, len(translation))
+		// todo implement me
 	}
+}
+
+func (db *DB) makeEntry(off, ln int) entry {
+	lo, hi := len(db.rules), len(db.rules)
+	s := db.buf[off : off+ln]
+	var pos, o, o1 int
+	for i := 0; ; i++ {
+		var (
+			r      rule
+			cb, qb bool
+		)
+		if pos = db.scanUnescByte(s, '|', o); pos == -1 {
+			pos = len(s)
+		}
+		s1 := s[o:pos]
+		if s1[0] == '{' {
+			if lo, skip, ok := db.checkCB1(s1, 1); ok {
+				o1 = skip
+				r.lo = lo
+				r.hi = r.lo + 1
+				cb = true
+			}
+		}
+		if !cb && s1[0] == '[' {
+			if lo, hi, skip, ok := db.checkQB1(s1, 1); ok {
+				o1 = skip
+				r.lo = lo
+				r.hi = hi
+				qb = true
+			}
+		}
+		if !cb && !qb {
+			if i == 0 {
+				r.lo, r.hi = 0, 2
+			} else {
+				r.lo, r.hi = 2, math.MaxInt32
+			}
+		}
+		r.bp.Init(db.buf, off+o+o1, pos-o-o1)
+		db.rules = append(db.rules, r)
+		hi++
+		o = pos + 1
+		if o >= len(s) {
+			break
+		}
+	}
+
+	var e entry
+	e.join(uint32(lo), uint32(hi))
+	return e
 }
 
 // Get translation of key.
 //
 // If translation doesn't exists, def will be used instead.
 func (db *DB) Get(key, def string) string {
-	return db.GetWR(key, def, nil)
+	return db.GetPluralWR(key, def, 1, nil)
 }
 
 // Get translation of key with replacer.
@@ -100,22 +145,7 @@ func (db *DB) Get(key, def string) string {
 // If translation doesn't exists, def will be used instead.
 // Replacement rules will apply if repl will pass.
 func (db *DB) GetWR(key, def string, repl *PlaceholderReplacer) string {
-	if len(key) == 0 {
-		return ""
-	}
-	hkey := db.hasher.Sum64(key)
-
-	db.RLock()
-	raw := db.getLF(hkey)
-	db.RUnlock()
-
-	if len(raw) == 0 {
-		raw = def
-	}
-	if len(raw) != 0 && repl != nil {
-		return repl.Commit(raw)
-	}
-	return raw
+	return db.GetPluralWR(key, def, 1, repl)
 }
 
 // Get translation using plural formula.
@@ -133,7 +163,7 @@ func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer)
 	hkey := db.hasher.Sum64(key)
 
 	db.RLock()
-	raw := db.getLF(hkey)
+	raw := db.getLF(hkey, count)
 	db.RUnlock()
 
 	if len(raw) == 0 {
@@ -143,109 +173,58 @@ func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer)
 		return ""
 	}
 
-	// Handle separators.
-	prim, noloop := false, false
-	left, right, offset := 0, 0, 0
-	// Check first rule is exact rule.
-	if raw[offset] == '{' {
-		if ok, left1 := db.checkCB(raw, offset, count); ok {
-			left = left1
-			noloop = true
-			if right = db.scanUnescByte(raw, '|', offset); right == -1 {
-				right = len(raw)
-			}
-		}
-	}
-	// Check first rule is range rule.
-	if raw[offset] == '[' {
-		if ok, left1 := db.checkQB(raw, offset, count); ok {
-			left = left1
-			noloop = true
-			if right = db.scanUnescByte(raw, '|', offset); right == -1 {
-				right = len(raw)
-			}
-		}
-	}
-	if !noloop {
-		for {
-			left = offset
-			pos := db.scanUnescByte(raw, '|', offset)
-			if pos == -1 {
-				right = len(raw)
-				break
-			}
-			if raw[offset] == '{' || raw[offset] == '[' {
-				if ok, _ := db.checkCB(raw, offset, count); ok {
-					right = pos
-					break
-				}
-				if ok, _ := db.checkQB(raw, offset, count); ok {
-					right = pos
-					break
-				}
-			} else {
-				right = pos
-				prim = true
-				break
-			}
-			if offset = pos; offset == len(raw) {
-				break
-			}
-		}
+	if repl != nil {
+		return repl.Commit(raw)
 	}
 
-	// var r string
-	// prim, offset, poffset := false, 0, 0
-	// for pos := db.scanUnescByte(raw, '|', offset); pos != -1; {
-	// 	brk := false
-	// 	poffset = offset
-	// 	offset = pos
-	// 	if pos+1 < len(raw) {
-	// 		switch raw[pos+1] {
-	// 		case '{':
-	// 			pos1 := db.scanUnescByte(raw, '}', pos+1)
-	// 			_ = pos1
-	// 			// todo parse exact plural rule
-	// 		case '[':
-	// 			pos1 := db.scanUnescByte(raw, ']', pos+1)
-	// 			_ = pos1
-	// 			// todo parse range plural rule
-	// 		default:
-	// 			prim = true
-	// 			brk = true
-	// 		}
-	// 	}
-	// 	if brk {
-	// 		break
-	// 	}
-	// }
-	var r string
-	if prim {
-		switch count {
-		case 1:
-			r = raw[left:right]
-		default:
-			r = raw[right+1:]
-		}
-	} else {
-		r = raw[left:right]
-		// todo handle exact/range plural rule
-	}
-
-	if len(r) > 0 && repl != nil {
-		return repl.Commit(r)
-	}
-
-	return r
+	return raw
 }
 
 // Lock-free inner getter.
-func (db *DB) getLF(hkey uint64) string {
-	var i int
-	if i = db.index.get(hkey); i == -1 {
+func (db *DB) getLF(hkey uint64, count int) string {
+	var e entry
+	if e = db.index.get(hkey); e == 0 {
 		return ""
 	}
-	return db.entry[i].TakeAddr(db.buf).String()
+	lo, hi := e.split()
+	if rules := db.rules[lo:hi]; len(rules) > 0 {
+		var i int
+		_ = rules[len(rules)-1]
+	loop:
+		rule := rules[i]
+		if int32(count) >= rule.lo && int32(count) < rule.hi {
+			return rule.bp.TakeAddr(db.buf).String()
+		}
+		i++
+		if i < len(rules) {
+			goto loop
+		}
+	}
+	return ""
+}
+
+func (db *DB) getRawLF(hkey uint64) string {
+	var e entry
+	if e = db.index.get(hkey); e == 0 {
+		return ""
+	}
+	lo, hi := e.split()
+	if rules := db.rules[lo:hi]; len(rules) > 0 {
+		bp := byteptr.Byteptr{}
+		bp.TakeAddr(db.buf).SetOffset(rules[0].bp.Offset())
+		var i, l int
+		_ = rules[len(rules)-1]
+	loop:
+		rule := rules[i]
+		l += rule.bp.Len()
+		i++
+		if i < len(rules) {
+			goto loop
+		}
+		bp.SetLen(l)
+		return bp.String()
+	}
+	return ""
 }
 
 // Begin new transaction.
@@ -283,8 +262,8 @@ func (db *DB) txnIndir() *txn {
 	return (*txn)(db.txn)
 }
 
-func (db *DB) scanUnescByte(s string, b byte, offset int) int {
-	for si := strings.IndexByte(s[offset:], b); si != -1; {
+func (db *DB) scanUnescByte(s []byte, b byte, offset int) int {
+	for si := bytes.IndexByte(s[offset:], b); si != -1; {
 		if si > 0 && s[si-1] == '\\' {
 			offset = si
 			continue
@@ -294,26 +273,45 @@ func (db *DB) scanUnescByte(s string, b byte, offset int) int {
 	return -1
 }
 
-// Check curly brackets plural rule.
-func (db *DB) checkCB(s string, offset, count int) (bool, int) {
-	if s[offset] != '{' {
-		return false, -1
-	}
-	pos := db.scanUnescByte(s, '}', offset+1)
-	if pos == -1 {
-		return false, -1
-	}
-	n := s[offset+1 : pos]
-	if i, err := strconv.ParseInt(n, 10, 64); err == nil {
-		if len(s) > pos+2 && s[pos+1] == ' ' {
-			pos += 2
+func (db *DB) checkCB1(p []byte, off int) (int32, int, bool) {
+	if pos := db.scanUnescByte(p, '}', off); pos != -1 {
+		if raw := p[off:pos]; len(raw) > 0 {
+			if i64, err := strconv.ParseInt(fastconv.B2S(raw), 10, 32); err == nil {
+				if p[pos+1] == ' ' {
+					pos += 2
+				}
+				return int32(i64), pos, true
+			}
 		}
-		return int(i) == count, pos
 	}
-	return false, -1
+	return 0, 0, false
 }
 
-// Check square brackets plural rule.
-func (db *DB) checkQB(s string, offset, count int) (bool, int) {
-	return false, -1
+func (db *DB) checkQB1(p []byte, off int) (lo int32, hi int32, skip int, ok bool) {
+	if pos := db.scanUnescByte(p, ']', off); pos != -1 {
+		skip = pos + 1
+		if p[pos+1] == ' ' {
+			skip = pos + 2
+		}
+		raw := p[off:pos]
+		if pos1 := bytes.IndexByte(raw, ','); pos1 != -1 {
+			n1, n2 := raw[:pos1], raw[pos1+1:]
+			ok = true
+			if bytes.Equal(n1, inf) {
+				lo = math.MinInt32
+			} else if n11, err := strconv.ParseInt(fastconv.B2S(n1), 10, 32); err == nil {
+				lo = int32(n11)
+			} else {
+				ok = false
+			}
+			if bytes.Equal(n2, inf) {
+				hi = math.MaxInt32
+			} else if n22, err := strconv.ParseInt(fastconv.B2S(n2), 10, 32); err == nil {
+				hi = int32(n22)
+			} else {
+				ok = false
+			}
+		}
+	}
+	return
 }

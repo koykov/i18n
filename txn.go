@@ -26,7 +26,7 @@ func (t *txn) set(key, translation string) {
 		return
 	}
 	hkey := t.db.hasher.Sum64(key)
-	if old := t.db.getLF(hkey); old == translation {
+	if old := t.db.getRawLF(hkey); old == translation {
 		return
 	}
 
