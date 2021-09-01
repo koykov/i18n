@@ -173,7 +173,7 @@ func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer)
 		return ""
 	}
 
-	if repl != nil {
+	if repl != nil && repl.Size() > 0 {
 		return repl.Commit(raw)
 	}
 
