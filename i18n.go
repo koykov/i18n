@@ -27,11 +27,6 @@ type DB struct {
 	txn unsafe.Pointer
 }
 
-type rule struct {
-	lo, hi int32
-	bp     byteptr.Byteptr
-}
-
 var (
 	inf = []byte("*")
 )
@@ -99,24 +94,22 @@ func (db *DB) makeEntry(off, ln int) entry {
 		if chunk[0] == '{' {
 			if lo, offCBE, ok := db.checkCB(chunk, 1); ok {
 				offFormula = offCBE
-				r.lo = lo
-				r.hi = r.lo + 1
+				r.encode(lo, lo+1)
 				cb = true
 			}
 		}
 		if !cb && chunk[0] == '[' {
 			if lo, hi, offFPE, ok := db.checkQB(chunk, 1); ok {
 				offFormula = offFPE
-				r.lo = lo
-				r.hi = hi
+				r.encode(lo, hi)
 				qb = true
 			}
 		}
 		if !cb && !qb {
 			if i == 0 {
-				r.lo, r.hi = 0, 2
+				r.encode(0, 2)
 			} else {
-				r.lo, r.hi = 2, math.MaxInt32
+				r.encode(2, math.MaxInt32)
 			}
 		}
 		r.bp.Init(db.buf, off+offPipe+offFormula, nextPipe-offPipe-offFormula)
@@ -192,7 +185,7 @@ func (db *DB) getLF(hkey uint64, count int) string {
 		_ = rules[len(rules)-1]
 	loop:
 		rule := rules[i]
-		if int32(count) >= rule.lo && int32(count) < rule.hi {
+		if rule.check(count) {
 			return rule.bp.TakeAddr(db.buf).String()
 		}
 		i++
