@@ -20,3 +20,10 @@ func (i index) get(key uint64) entry {
 	}
 	return 0
 }
+
+// Remove all keys from index.
+func (i *index) reset() {
+	for h := range *i {
+		delete(*i, h)
+	}
+}

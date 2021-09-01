@@ -250,10 +250,22 @@ func (db *DB) Commit() {
 		db.SetPolicy(policy.Locked)
 		db.Lock()
 		txn.commit()
+		db.txn = nil
 		db.Unlock()
 		db.SetPolicy(policy.LockFree)
 		txnP.put(txn)
 	}
+}
+
+// Reset all DB data.
+func (db *DB) Reset() {
+	db.SetPolicy(policy.Locked)
+	db.Lock()
+	db.index.reset()
+	db.rules = db.rules[:0]
+	db.buf = db.buf[:0]
+	db.Unlock()
+	db.SetPolicy(policy.LockFree)
 }
 
 // Indirect transaction from raw pointer.
