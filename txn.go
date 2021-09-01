@@ -9,15 +9,15 @@ type txn struct {
 	// Database to apply changes.
 	db *DB
 	// List of records to apply.
-	log []txnRecord
+	log []txnLog
 	// Transaction storage.
 	buf []byte
 }
 
 // Key-translation pair of transaction.
-type txnRecord struct {
-	hkey        uint64
-	translation byteptr.Byteptr
+type txnLog struct {
+	hkey uint64
+	t9n  byteptr.Byteptr
 }
 
 // Collect new translation.
@@ -34,9 +34,9 @@ func (t *txn) set(key, translation string) {
 	t.buf = append(t.buf, translation...)
 	bp := byteptr.Byteptr{}
 	bp.Init(t.buf, offset, len(translation))
-	t.log = append(t.log, txnRecord{
-		hkey:        hkey,
-		translation: bp,
+	t.log = append(t.log, txnLog{
+		hkey: hkey,
+		t9n:  bp,
 	})
 }
 
@@ -50,8 +50,8 @@ func (t *txn) commit() {
 
 	_ = t.log[len(t.log)-1]
 	for i := 0; i < len(t.log); i++ {
-		entry := &t.log[i]
-		t.db.setLF(entry.hkey, entry.translation.String())
+		log := &t.log[i]
+		t.db.setLF(log.hkey, log.t9n.String())
 	}
 }
 

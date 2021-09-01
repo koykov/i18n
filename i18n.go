@@ -69,13 +69,13 @@ func (db *DB) Set(key, translation string) {
 }
 
 // Lock-free inner setter.
-func (db *DB) setLF(hkey uint64, translation string) {
+func (db *DB) setLF(hkey uint64, t9n string) {
 	var e entry
 	if e = db.index.get(hkey); e == 0 {
 		// Save new translation.
 		offset := len(db.buf)
-		db.buf = append(db.buf, translation...)
-		e = db.makeEntry(offset, len(translation))
+		db.buf = append(db.buf, t9n...)
+		e = db.makeEntry(offset, len(t9n))
 		db.index[hkey] = e
 	} else {
 		// Update existing translation.
@@ -86,27 +86,27 @@ func (db *DB) setLF(hkey uint64, translation string) {
 func (db *DB) makeEntry(off, ln int) entry {
 	lo, hi := len(db.rules), len(db.rules)
 	s := db.buf[off : off+ln]
-	var pos, o, o1 int
+	var nextPipe, offPipe, offFormula int
 	for i := 0; ; i++ {
 		var (
 			r      rule
 			cb, qb bool
 		)
-		if pos = db.scanUnescByte(s, '|', o); pos == -1 {
-			pos = len(s)
+		if nextPipe = db.scanUnescByte(s, '|', offPipe); nextPipe == -1 {
+			nextPipe = len(s)
 		}
-		s1 := s[o:pos]
-		if s1[0] == '{' {
-			if lo, skip, ok := db.checkCB(s1, 1); ok {
-				o1 = skip
+		chunk := s[offPipe:nextPipe]
+		if chunk[0] == '{' {
+			if lo, offCBE, ok := db.checkCB(chunk, 1); ok {
+				offFormula = offCBE
 				r.lo = lo
 				r.hi = r.lo + 1
 				cb = true
 			}
 		}
-		if !cb && s1[0] == '[' {
-			if lo, hi, skip, ok := db.checkQB(s1, 1); ok {
-				o1 = skip
+		if !cb && chunk[0] == '[' {
+			if lo, hi, offFPE, ok := db.checkQB(chunk, 1); ok {
+				offFormula = offFPE
 				r.lo = lo
 				r.hi = hi
 				qb = true
@@ -119,17 +119,17 @@ func (db *DB) makeEntry(off, ln int) entry {
 				r.lo, r.hi = 2, math.MaxInt32
 			}
 		}
-		r.bp.Init(db.buf, off+o+o1, pos-o-o1)
+		r.bp.Init(db.buf, off+offPipe+offFormula, nextPipe-offPipe-offFormula)
 		db.rules = append(db.rules, r)
 		hi++
-		o = pos + 1
-		if o >= len(s) {
+		offPipe = nextPipe + 1
+		if offPipe >= len(s) {
 			break
 		}
 	}
 
 	var e entry
-	e.join(uint32(lo), uint32(hi))
+	e.encode(uint32(lo), uint32(hi))
 	return e
 }
 
@@ -186,7 +186,7 @@ func (db *DB) getLF(hkey uint64, count int) string {
 	if e = db.index.get(hkey); e == 0 {
 		return ""
 	}
-	lo, hi := e.split()
+	lo, hi := e.decode()
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
 		var i int
 		_ = rules[len(rules)-1]
@@ -203,12 +203,13 @@ func (db *DB) getLF(hkey uint64, count int) string {
 	return ""
 }
 
+// Get raw translation including all plural formula rules.
 func (db *DB) getRawLF(hkey uint64) string {
 	var e entry
 	if e = db.index.get(hkey); e == 0 {
 		return ""
 	}
-	lo, hi := e.split()
+	lo, hi := e.decode()
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
 		bp := byteptr.Byteptr{}
 		bp.TakeAddr(db.buf).SetOffset(rules[0].bp.Offset())
@@ -222,7 +223,7 @@ func (db *DB) getRawLF(hkey uint64) string {
 			goto loop
 		}
 		bp.SetLen(l)
-		return bp.String()
+		return bp.TakeAddr(db.buf).String()
 	}
 	return ""
 }
@@ -255,6 +256,7 @@ func (db *DB) Commit() {
 	}
 }
 
+// Indirect transaction from raw pointer.
 func (db *DB) txnIndir() *txn {
 	if db.txn == nil {
 		return nil
@@ -262,6 +264,7 @@ func (db *DB) txnIndir() *txn {
 	return (*txn)(db.txn)
 }
 
+// Get next position of unescaped b.
 func (db *DB) scanUnescByte(s []byte, b byte, offset int) int {
 	for si := bytes.IndexByte(s[offset:], b); si != -1; {
 		if si > 0 && s[si-1] == '\\' {
@@ -273,41 +276,51 @@ func (db *DB) scanUnescByte(s []byte, b byte, offset int) int {
 	return -1
 }
 
-func (db *DB) checkCB(p []byte, off int) (int32, int, bool) {
-	if pos := db.scanUnescByte(p, '}', off); pos != -1 {
-		if raw := p[off:pos]; len(raw) > 0 {
-			if i64, err := strconv.ParseInt(fastconv.B2S(raw), 10, 32); err == nil {
-				if p[pos+1] == ' ' {
-					pos += 2
+// Check value in curly brackets.
+//
+// Returns the exact value, offset of rule payload and success flag.
+func (db *DB) checkCB(p []byte, off int) (lo int32, offCBE int, ok bool) {
+	if offCBE = db.scanUnescByte(p, '}', off); offCBE != -1 {
+		if raw := p[off:offCBE]; len(raw) > 0 {
+			if lo64, err := strconv.ParseInt(fastconv.B2S(raw), 10, 32); err == nil {
+				if p[offCBE+1] == ' ' {
+					offCBE += 2
+				} else {
+					offCBE++
 				}
-				return int32(i64), pos, true
+				lo = int32(lo64)
+				ok = true
 			}
 		}
 	}
-	return 0, 0, false
+	return
 }
 
-func (db *DB) checkQB(p []byte, off int) (lo int32, hi int32, skip int, ok bool) {
-	if pos := db.scanUnescByte(p, ']', off); pos != -1 {
-		skip = pos + 1
-		if p[pos+1] == ' ' {
-			skip = pos + 2
+// Check values in square brackets.
+//
+// Returns the low/high values of range, offset of rule payload and success flag.
+func (db *DB) checkQB(p []byte, off int) (lo int32, hi int32, offQBE int, ok bool) {
+	if offQBE = db.scanUnescByte(p, ']', off); offQBE != -1 {
+		raw := p[off:offQBE]
+		if p[offQBE+1] == ' ' {
+			offQBE += 2
+		} else {
+			offQBE++
 		}
-		raw := p[off:pos]
-		if pos1 := bytes.IndexByte(raw, ','); pos1 != -1 {
-			n1, n2 := raw[:pos1], raw[pos1+1:]
+		if offComma := bytes.IndexByte(raw, ','); offComma != -1 {
+			rawLo, rawHi := raw[:offComma], raw[offComma+1:]
 			ok = true
-			if bytes.Equal(n1, inf) {
+			if bytes.Equal(rawLo, inf) {
 				lo = math.MinInt32
-			} else if n11, err := strconv.ParseInt(fastconv.B2S(n1), 10, 32); err == nil {
-				lo = int32(n11)
+			} else if lo64, err := strconv.ParseInt(fastconv.B2S(rawLo), 10, 32); err == nil {
+				lo = int32(lo64)
 			} else {
 				ok = false
 			}
-			if bytes.Equal(n2, inf) {
+			if bytes.Equal(rawHi, inf) {
 				hi = math.MaxInt32
-			} else if n22, err := strconv.ParseInt(fastconv.B2S(n2), 10, 32); err == nil {
-				hi = int32(n22)
+			} else if hi64, err := strconv.ParseInt(fastconv.B2S(rawHi), 10, 32); err == nil {
+				hi = int32(hi64)
 			} else {
 				ok = false
 			}
