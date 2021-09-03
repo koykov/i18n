@@ -10,6 +10,18 @@ import (
 	"github.com/koykov/policy"
 )
 
+func assertLH(t *testing.T, lo, hi, loE, hiE uint32) {
+	if lo != loE || hi != hiE {
+		t.Errorf("rules range mismatch, need[%d,%d], got [%d,%d]", loE, hiE, lo, hi)
+	}
+}
+func assertT9n(t *testing.T, db *DB, key, expect string) {
+	t9n := db.Get(key, "")
+	if t9n != expect {
+		t.Errorf("translation mismatch, need %s, got %s", expect, t9n)
+	}
+}
+
 func TestIO(t *testing.T) {
 	testIO := func(t *testing.T, entries int64) {
 		buf := []byte("en.")
@@ -35,37 +47,26 @@ func TestIO(t *testing.T) {
 	t.Run("1K", func(t *testing.T) { testIO(t, 1000) })
 	t.Run("10K", func(t *testing.T) { testIO(t, 10000) })
 	t.Run("100K", func(t *testing.T) { testIO(t, 100000) })
-}
-
-func BenchmarkIO(b *testing.B) {
-	benchIO := func(b *testing.B, entries int64) {
-		buf := []byte("en.")
+	t.Run("overwrite", func(t *testing.T) {
 		db, _ := New(fnv.Hasher{})
-		db.SetPolicy(policy.Locked)
-		for i := int64(0); i < entries; i++ {
-			buf = strconv.AppendInt(buf[:3], i, 10)
-			db.Set(fastconv.B2S(buf), "Hello there!")
-		}
-		db.SetPolicy(policy.LockFree)
+		db.Set("key1", "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
+		db.Set("key2", "Aenean congue quis nisl ut vulputate. Sed lacus dolor, tempor nec elit sit amet, congue dapibus purus. Pellentesque a lectus vel leo finibus scelerisque.")
+		db.Set("key3", "Aliquam blandit mauris mauris, eget bibendum lacus tempus non. Duis orci leo, sagittis sed lorem eu, pulvinar elementum leo.")
 
-		b.ReportAllocs()
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			x := rand.Int63n(entries)
-			buf = strconv.AppendInt(buf[:3], x, 10)
-			s := db.Get(fastconv.B2S(buf), "")
-			if s != "Hello there!" {
-				b.Error("translation mismatch")
-			}
-		}
-	}
+		var lo, hi uint32
 
-	b.Run("1", func(b *testing.B) { benchIO(b, 1) })
-	b.Run("10", func(b *testing.B) { benchIO(b, 10) })
-	b.Run("100", func(b *testing.B) { benchIO(b, 100) })
-	b.Run("1K", func(b *testing.B) { benchIO(b, 1000) })
-	b.Run("10K", func(b *testing.B) { benchIO(b, 10000) })
-	b.Run("100K", func(b *testing.B) { benchIO(b, 100000) })
+		hkey := db.hasher.Sum64("key1")
+		e := db.setLF(hkey, "Nunc lacinia, purus finibus consectetur ullamcorper, nisi elit laoreet augue, vitae tincidunt tellus velit sit amet arcu.")
+		lo, hi = e.decode()
+		assertLH(t, lo, hi, 3, 4)
+
+		t9n := "Quisque sit amet viverra ligula. Praesent sagittis, sapien ut rutrum porttitor, dolor ligula accumsan velit, ut lacinia tellus tellus nec tortor."
+		hkey = db.hasher.Sum64("key2")
+		e = db.setLF(hkey, t9n)
+		lo, hi = e.decode()
+		assertLH(t, lo, hi, 1, 2)
+		assertT9n(t, db, "key2", t9n)
+	})
 }
 
 func TestPlural(t *testing.T) {
@@ -112,4 +113,35 @@ func TestPlural(t *testing.T) {
 	t.Run("ru.placeholder[999999]", func(t *testing.T) {
 		testPlural(db, "ru.user.bag.apples", "", 999999, "У вас много яблок")
 	})
+}
+
+func BenchmarkIO(b *testing.B) {
+	benchIO := func(b *testing.B, entries int64) {
+		buf := []byte("en.")
+		db, _ := New(fnv.Hasher{})
+		db.SetPolicy(policy.Locked)
+		for i := int64(0); i < entries; i++ {
+			buf = strconv.AppendInt(buf[:3], i, 10)
+			db.Set(fastconv.B2S(buf), "Hello there!")
+		}
+		db.SetPolicy(policy.LockFree)
+
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			x := rand.Int63n(entries)
+			buf = strconv.AppendInt(buf[:3], x, 10)
+			s := db.Get(fastconv.B2S(buf), "")
+			if s != "Hello there!" {
+				b.Error("translation mismatch")
+			}
+		}
+	}
+
+	b.Run("1", func(b *testing.B) { benchIO(b, 1) })
+	b.Run("10", func(b *testing.B) { benchIO(b, 10) })
+	b.Run("100", func(b *testing.B) { benchIO(b, 100) })
+	b.Run("1K", func(b *testing.B) { benchIO(b, 1000) })
+	b.Run("10K", func(b *testing.B) { benchIO(b, 10000) })
+	b.Run("100K", func(b *testing.B) { benchIO(b, 100000) })
 }
