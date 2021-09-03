@@ -174,3 +174,55 @@ func BenchmarkIO(b *testing.B) {
 	b.Run("10K", func(b *testing.B) { benchIO(b, 10000) })
 	b.Run("100K", func(b *testing.B) { benchIO(b, 100000) })
 }
+
+func BenchmarkPlural(b *testing.B) {
+	benchPlural := func(b *testing.B, db *DB, key, def string, count int, expect string) {
+		repl := PlaceholderReplacer{}
+		sc := strconv.Itoa(count)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			repl.Reset()
+			repl.AddKV("!count", sc)
+			s := db.GetPluralWR(key, def, count, &repl)
+			if s != expect {
+				b.Errorf("plural mismatch, need %s got %s", expect, s)
+			}
+		}
+	}
+
+	db, _ := New(fnv.Hasher{})
+	db.SetPolicy(policy.Locked)
+	db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
+	db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
+	db.Set("en.h3.army_size", "[1,5] Few|[5,10] Several|[10,20] Pack|[20,50] Lots|[50,100] Horde|[100,250] Throng|[250,500] Swarm|[500,1000] Zounds|[1000,*] Legion")
+	db.Set("ru.user.bag.apples", "[*,0] У вас проблемы с математикой|{0} У вас нет яблок|{1} У вас !count яблоко|[2,5] У вас !count яблока|[5,21] У вас !count яблок|{21} У вас !count яблоко|[22,25] У вас !count яблока|[25,*] У вас много яблок")
+	db.SetPolicy(policy.LockFree)
+
+	b.Run("en.simple[1]", func(b *testing.B) { benchPlural(b, db, "en.user.bag.apples_flag", "", 1, "You have one apple") })
+	b.Run("en.simple[2]", func(b *testing.B) { benchPlural(b, db, "en.user.bag.apples_flag", "", 2, "You have many apples") })
+
+	b.Run("en.placeholder[1]", func(b *testing.B) { benchPlural(b, db, "en.user.bag.apples", "", 1, "You have 1 apple") })
+	b.Run("en.placeholder[5]", func(b *testing.B) { benchPlural(b, db, "en.user.bag.apples", "", 5, "You have 5 apples") })
+
+	b.Run("en.h3.enemy_size[0]", func(b *testing.B) { benchPlural(b, db, "en.h3.army_size", "N/D", 0, "N/D") })
+	b.Run("en.h3.enemy_size[2]", func(b *testing.B) { benchPlural(b, db, "en.h3.army_size", "", 2, "Few") })
+	b.Run("en.h3.enemy_size[19]", func(b *testing.B) { benchPlural(b, db, "en.h3.army_size", "", 19, "Pack") })
+	b.Run("en.h3.enemy_size[20]", func(b *testing.B) { benchPlural(b, db, "en.h3.army_size", "", 20, "Lots") })
+	b.Run("en.h3.enemy_size[333]", func(b *testing.B) { benchPlural(b, db, "en.h3.army_size", "", 333, "Swarm") })
+	b.Run("en.h3.enemy_size[999]", func(b *testing.B) { benchPlural(b, db, "en.h3.army_size", "", 999, "Zounds") })
+	b.Run("en.h3.enemy_size[1e9]", func(b *testing.B) { benchPlural(b, db, "en.h3.army_size", "", 1e9, "Legion") })
+
+	b.Run("ru.placeholder[-15]", func(b *testing.B) {
+		benchPlural(b, db, "ru.user.bag.apples", "", -15, "У вас проблемы с математикой")
+	})
+	b.Run("ru.placeholder[0]", func(b *testing.B) { benchPlural(b, db, "ru.user.bag.apples", "", 0, "У вас нет яблок") })
+	b.Run("ru.placeholder[1]", func(b *testing.B) { benchPlural(b, db, "ru.user.bag.apples", "", 1, "У вас 1 яблоко") })
+	b.Run("ru.placeholder[3]", func(b *testing.B) { benchPlural(b, db, "ru.user.bag.apples", "", 3, "У вас 3 яблока") })
+	b.Run("ru.placeholder[11]", func(b *testing.B) { benchPlural(b, db, "ru.user.bag.apples", "", 11, "У вас 11 яблок") })
+	b.Run("ru.placeholder[21]", func(b *testing.B) { benchPlural(b, db, "ru.user.bag.apples", "", 21, "У вас 21 яблоко") })
+	b.Run("ru.placeholder[24]", func(b *testing.B) { benchPlural(b, db, "ru.user.bag.apples", "", 24, "У вас 24 яблока") })
+	b.Run("ru.placeholder[999999]", func(b *testing.B) {
+		benchPlural(b, db, "ru.user.bag.apples", "", 999999, "У вас много яблок")
+	})
+}
