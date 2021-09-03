@@ -22,6 +22,13 @@ func assertT9n(t *testing.T, db *DB, key, expect string) {
 	}
 }
 
+func assertT9nPlural(t *testing.T, db *DB, key, expect string, count int) {
+	t9n := db.GetPlural(key, "", count)
+	if t9n != expect {
+		t.Errorf("translation mismatch, need %s, got %s", expect, t9n)
+	}
+}
+
 func TestIO(t *testing.T) {
 	testIO := func(t *testing.T, entries int64) {
 		buf := []byte("en.")
@@ -66,6 +73,28 @@ func TestIO(t *testing.T) {
 		lo, hi = e.decode()
 		assertLH(t, lo, hi, 1, 2)
 		assertT9n(t, db, "key2", t9n)
+	})
+	t.Run("overwrite_plural", func(t *testing.T) {
+		db, _ := New(fnv.Hasher{})
+		db.Set("key1", "There is one apple|There are many apples")
+		db.Set("key2", "{0} There are none|[1,19] There are some|[20,*] There are many")
+		db.Set("key3", "{1} :value minute ago|[2,*] :value minutes ago")
+
+		var lo, hi uint32
+
+		hkey := db.hasher.Sum64("key1")
+		e := db.setLF(hkey, "{0} There are none|{1} There is one|[2,*] There are :count")
+		lo, hi = e.decode()
+		assertLH(t, lo, hi, 7, 10)
+		assertT9nPlural(t, db, "key1", "There is one", 1)
+
+		t9n := "{0} There are none|{1} There is one|[2,*] There are :count"
+		hkey = db.hasher.Sum64("key2")
+		e = db.setLF(hkey, t9n)
+		lo, hi = e.decode()
+		assertLH(t, lo, hi, 2, 5)
+		assertT9nPlural(t, db, "key2", "There is one", 1)
+		assertT9nPlural(t, db, "key2", "There are :count", 10)
 	})
 }
 

@@ -159,12 +159,12 @@ func (db *DB) getRawLF(hkey uint64) string {
 	lo, hi := e.decode()
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
 		bp := byteptr.Byteptr{}
-		bp.TakeAddr(db.buf).SetOffset(rules[0].bp.Offset())
+		bp.TakeAddr(db.buf).SetOffset(rules[0].rp.Offset())
 		var i, l int
 		_ = rules[len(rules)-1]
 	loop:
 		rule := rules[i]
-		l += rule.bp.Len()
+		l += rule.rp.Len()
 		i++
 		if i < len(rules) {
 			goto loop
@@ -227,13 +227,15 @@ func (db *DB) txnIndir() *txn {
 func (db *DB) makeEntry(off, ln int) entry {
 	lo, hi := len(db.rules), len(db.rules)
 	s := db.buf[off : off+ln]
-	var nextPipe, offPipe, offFormula int
+	var nextPipe, offPipe, offFormula, lenPipe int
 	for i := 0; ; i++ {
 		var (
 			r      rule
 			cb, qb bool
 		)
+		lenPipe = 1
 		if nextPipe = db.scanUnescByte(s, '|', offPipe); nextPipe == -1 {
+			lenPipe = 0
 			nextPipe = len(s)
 		}
 		chunk := s[offPipe:nextPipe]
@@ -259,6 +261,7 @@ func (db *DB) makeEntry(off, ln int) entry {
 			}
 		}
 		r.bp.Init(db.buf, off+offPipe+offFormula, nextPipe-offPipe-offFormula)
+		r.rp.Init(db.buf, off+offPipe, nextPipe-offPipe+lenPipe)
 		db.rules = append(db.rules, r)
 		hi++
 		offPipe = nextPipe + 1
@@ -292,10 +295,10 @@ func (db *DB) updateEntry(e *entry, t9n string) entry {
 	lo, hi := e.decode()
 	if rules = db.rules[lo:hi]; len(rules) > 0 {
 		_ = rules[len(rules)-1]
-		rawOff = rules[0].bp.Offset()
+		rawOff = rules[0].rp.Offset()
 		for i := 0; i < len(rules); i++ {
 			rule := rules[i]
-			rawLen += rule.bp.Len()
+			rawLen += rule.rp.Len()
 		}
 	}
 

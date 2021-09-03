@@ -5,6 +5,7 @@ import "github.com/koykov/byteptr"
 // Rule stores low and high ranges of plural rule and rule's body bytes.
 type rule struct {
 	lh int64
+	rp byteptr.Byteptr
 	bp byteptr.Byteptr
 }
 
