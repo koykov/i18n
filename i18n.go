@@ -64,7 +64,7 @@ func (db *DB) Set(key, translation string) {
 }
 
 // Lock-free inner setter.
-func (db *DB) setLF(hkey uint64, t9n string) {
+func (db *DB) setLF(hkey uint64, t9n string) entry {
 	var e entry
 	if e = db.index.get(hkey); e == 0 {
 		// Save new translation.
@@ -74,55 +74,9 @@ func (db *DB) setLF(hkey uint64, t9n string) {
 		db.index[hkey] = e
 	} else {
 		// Update existing translation.
-		// todo implement me
+		e = db.updateEntry(&e, t9n)
+		db.index[hkey] = e
 	}
-}
-
-func (db *DB) makeEntry(off, ln int) entry {
-	lo, hi := len(db.rules), len(db.rules)
-	s := db.buf[off : off+ln]
-	var nextPipe, offPipe, offFormula int
-	for i := 0; ; i++ {
-		var (
-			r      rule
-			cb, qb bool
-		)
-		if nextPipe = db.scanUnescByte(s, '|', offPipe); nextPipe == -1 {
-			nextPipe = len(s)
-		}
-		chunk := s[offPipe:nextPipe]
-		if chunk[0] == '{' {
-			if lo, offCBE, ok := db.checkCB(chunk, 1); ok {
-				offFormula = offCBE
-				r.encode(lo, lo+1)
-				cb = true
-			}
-		}
-		if !cb && chunk[0] == '[' {
-			if lo, hi, offFPE, ok := db.checkQB(chunk, 1); ok {
-				offFormula = offFPE
-				r.encode(lo, hi)
-				qb = true
-			}
-		}
-		if !cb && !qb {
-			if i == 0 {
-				r.encode(0, 2)
-			} else {
-				r.encode(2, math.MaxInt32)
-			}
-		}
-		r.bp.Init(db.buf, off+offPipe+offFormula, nextPipe-offPipe-offFormula)
-		db.rules = append(db.rules, r)
-		hi++
-		offPipe = nextPipe + 1
-		if offPipe >= len(s) {
-			break
-		}
-	}
-
-	var e entry
-	e.encode(uint32(lo), uint32(hi))
 	return e
 }
 
@@ -267,6 +221,100 @@ func (db *DB) txnIndir() *txn {
 		return nil
 	}
 	return (*txn)(db.txn)
+}
+
+// Create new entry from translation saved in buffer with length ln by offset off.
+func (db *DB) makeEntry(off, ln int) entry {
+	lo, hi := len(db.rules), len(db.rules)
+	s := db.buf[off : off+ln]
+	var nextPipe, offPipe, offFormula int
+	for i := 0; ; i++ {
+		var (
+			r      rule
+			cb, qb bool
+		)
+		if nextPipe = db.scanUnescByte(s, '|', offPipe); nextPipe == -1 {
+			nextPipe = len(s)
+		}
+		chunk := s[offPipe:nextPipe]
+		if chunk[0] == '{' {
+			if lo, offCBE, ok := db.checkCB(chunk, 1); ok {
+				offFormula = offCBE
+				r.encode(lo, lo+1)
+				cb = true
+			}
+		}
+		if !cb && chunk[0] == '[' {
+			if lo, hi, offFPE, ok := db.checkQB(chunk, 1); ok {
+				offFormula = offFPE
+				r.encode(lo, hi)
+				qb = true
+			}
+		}
+		if !cb && !qb {
+			if i == 0 {
+				r.encode(0, 2)
+			} else {
+				r.encode(2, math.MaxInt32)
+			}
+		}
+		r.bp.Init(db.buf, off+offPipe+offFormula, nextPipe-offPipe-offFormula)
+		db.rules = append(db.rules, r)
+		hi++
+		offPipe = nextPipe + 1
+		if offPipe >= len(s) {
+			break
+		}
+	}
+
+	var e entry
+	e.encode(uint32(lo), uint32(hi))
+	return e
+}
+
+// Update entry e with t9n value.
+//
+// If possible new translation will be write over old space.
+func (db *DB) updateEntry(e *entry, t9n string) entry {
+	var pc, offPipe, nextPipe, rawOff, rawLen int
+	s := fastconv.S2B(t9n)
+	// Get rules count in new translation.
+	for pc = 0; ; pc++ {
+		if nextPipe = db.scanUnescByte(s, '|', offPipe); nextPipe == -1 {
+			pc++
+			break
+		}
+		offPipe = nextPipe + 1
+	}
+
+	// Get length of old raw translation.
+	var rules []rule
+	lo, hi := e.decode()
+	if rules = db.rules[lo:hi]; len(rules) > 0 {
+		_ = rules[len(rules)-1]
+		rawOff = rules[0].bp.Offset()
+		for i := 0; i < len(rules); i++ {
+			rule := rules[i]
+			rawLen += rule.bp.Len()
+		}
+	}
+
+	// Check space for new translation.
+	if len(t9n) > rawLen || pc > int(hi-lo) {
+		// No space, make new entry.
+		off := len(db.buf)
+		db.buf = append(db.buf, t9n...)
+		return db.makeEntry(off, len(t9n))
+	} else {
+		// Use old space.
+		rulesOff := len(db.rules)
+		copy(db.buf[rawOff:], t9n)
+		db.makeEntry(rawOff, len(t9n))
+		copy(db.rules[lo:hi], db.rules[rulesOff:])
+		db.rules = db.rules[:rulesOff]
+		e.encode(lo, lo+uint32(pc))
+		return *e
+	}
 }
 
 // Get next position of unescaped b.
