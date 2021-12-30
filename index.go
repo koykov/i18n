@@ -3,7 +3,7 @@ package i18n
 // Index stores hashed key-entry pairs.
 //
 // Hashed key uses to reduce pointers in the package to follow pointers policy.
-// Entry as uint64 value uses due to impossibility to take an pointer of map value.
+// Entry as uint64 value uses due to impossibility to take a pointer of map value.
 type index map[uint64]entry
 
 // Save new entry.
