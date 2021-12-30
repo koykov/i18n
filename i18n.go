@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"math"
 	"strconv"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/koykov/byteptr"
@@ -12,9 +13,15 @@ import (
 	"github.com/koykov/policy"
 )
 
+const (
+	statusNil = iota
+	statusActive
+)
+
 // i18n database.
 type DB struct {
 	policy.RWLock
+	status uint32
 	// Keys hasher.
 	hasher hash.Hasher
 	// Translations index.
@@ -37,6 +44,7 @@ func New(hasher hash.Hasher) (*DB, error) {
 		return nil, ErrNoHasher
 	}
 	db := &DB{
+		status: statusActive,
 		hasher: hasher,
 		index:  make(index),
 	}
@@ -46,9 +54,12 @@ func New(hasher hash.Hasher) (*DB, error) {
 // Set translation as key.
 //
 // If locale needed, the key must contain it as a prefix, eg: "en.messages.accessDenied" or "ru-RU.messages.welcome".
-func (db *DB) Set(key, translation string) {
+func (db *DB) Set(key, translation string) error {
+	if err := db.checkStatus(); err != nil {
+		return err
+	}
 	if len(key) == 0 || len(translation) == 0 {
-		return
+		return nil
 	}
 
 	db.Lock()
@@ -61,6 +72,7 @@ func (db *DB) Set(key, translation string) {
 		hkey := db.hasher.Sum64(key)
 		db.setLF(hkey, translation)
 	}
+	return nil
 }
 
 // Lock-free inner setter.
@@ -104,6 +116,9 @@ func (db *DB) GetPlural(key, def string, count int) string {
 //
 // See GetWR().
 func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer) string {
+	if err := db.checkStatus(); err != nil {
+		return ""
+	}
 	if len(key) == 0 {
 		return ""
 	}
@@ -179,6 +194,9 @@ func (db *DB) getRawLF(hkey uint64) string {
 //
 // All update calls will collect in the transaction until commit.
 func (db *DB) BeginTXN() {
+	if err := db.checkStatus(); err != nil {
+		return
+	}
 	txn := txnP.get()
 	txn.db = db
 	db.txn = unsafe.Pointer(txn)
@@ -186,6 +204,9 @@ func (db *DB) BeginTXN() {
 
 // Rollback transaction.
 func (db *DB) Rollback() {
+	if err := db.checkStatus(); err != nil {
+		return
+	}
 	if txn := db.txnIndir(); txn != nil {
 		txnP.put(txn)
 	}
@@ -194,6 +215,9 @@ func (db *DB) Rollback() {
 // Commit transaction.
 func (db *DB) Commit() {
 	if txn := db.txnIndir(); txn != nil {
+		if err := db.checkStatus(); err != nil {
+			return
+		}
 		db.SetPolicy(policy.Locked)
 		db.Lock()
 		txn.commit()
@@ -206,6 +230,9 @@ func (db *DB) Commit() {
 
 // Reset all DB data.
 func (db *DB) Reset() {
+	if err := db.checkStatus(); err != nil {
+		return
+	}
 	db.SetPolicy(policy.Locked)
 	db.Lock()
 	db.index.reset()
@@ -383,4 +410,11 @@ func (db *DB) checkQB(p []byte, off int) (lo int32, hi int32, offQBE int, ok boo
 		}
 	}
 	return
+}
+
+func (db *DB) checkStatus() error {
+	if atomic.LoadUint32(&db.status) == statusNil {
+		return ErrBadDB
+	}
+	return nil
 }
