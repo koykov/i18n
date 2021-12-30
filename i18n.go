@@ -18,7 +18,7 @@ const (
 	statusActive
 )
 
-// i18n database.
+// DB is an i18n database implementation.
 type DB struct {
 	policy.RWLock
 	status uint32
@@ -38,7 +38,7 @@ var (
 	inf = []byte("*")
 )
 
-// Make new DB.
+// New makes new DB instance with given hasher.
 func New(hasher hash.Hasher) (*DB, error) {
 	if hasher == nil {
 		return nil, ErrNoHasher
@@ -92,27 +92,27 @@ func (db *DB) setLF(hkey uint64, t9n string) entry {
 	return e
 }
 
-// Get translation of key.
+// Get returns a translation of key.
 //
 // If translation doesn't exists, def will be used instead.
 func (db *DB) Get(key, def string) string {
 	return db.GetPluralWR(key, def, 1, nil)
 }
 
-// Get translation of key with replacer.
+// GetWR returns a translation of key with replacer.
 //
-// If translation doesn't exists, def will be used instead.
+// If translation doesn't exist, def will be used instead.
 // Replacement rules will apply if repl will pass.
 func (db *DB) GetWR(key, def string, repl *PlaceholderReplacer) string {
 	return db.GetPluralWR(key, def, 1, repl)
 }
 
-// Get translation using plural formula.
+// GetPlural returns a translation using plural formula.
 func (db *DB) GetPlural(key, def string, count int) string {
 	return db.GetPluralWR(key, def, count, nil)
 }
 
-// Get translation using plural formula with replacer.
+// GetPluralWR returns a translation using plural formula with replacer.
 //
 // See GetWR().
 func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer) string {
@@ -190,7 +190,7 @@ func (db *DB) getRawLF(hkey uint64) string {
 	return ""
 }
 
-// Begin new transaction.
+// BeginTXN starts new transaction.
 //
 // All update calls will collect in the transaction until commit.
 func (db *DB) BeginTXN() {

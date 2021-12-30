@@ -6,7 +6,7 @@ import (
 	"github.com/koykov/byteptr"
 )
 
-// Placeholders replacer.
+// PlaceholderReplacer is a storage of placeholders replacer.
 type PlaceholderReplacer struct {
 	kv  []kv
 	buf []byte
@@ -18,7 +18,7 @@ type kv struct {
 	k, v byteptr.Byteptr
 }
 
-// Add new placeholder and replace strings as key-value pair.
+// AddKV stores new placeholder and replace strings as key-value pair.
 func (r *PlaceholderReplacer) AddKV(key, value string) *PlaceholderReplacer {
 	offsetK := len(r.buf)
 	r.buf = append(r.buf, key...)
@@ -35,7 +35,7 @@ func (r *PlaceholderReplacer) AddKV(key, value string) *PlaceholderReplacer {
 	return r
 }
 
-// Add new placeholder and replace string as key-value pair in solid format "<placeholder>:<replace>".
+// AddSolidKV stores new placeholder and replace string as key-value pair in solid format "<placeholder>:<replace>".
 func (r *PlaceholderReplacer) AddSolidKV(kv string) *PlaceholderReplacer {
 	offset, i := 0, 0
 loop:
@@ -52,12 +52,12 @@ loop:
 	return r.AddKV(k, v)
 }
 
-// Get count of added replacements.
+// Size gets count of added replacements.
 func (r *PlaceholderReplacer) Size() int {
 	return len(r.kv)
 }
 
-// Perform replaces.
+// Commit performs the replaces.
 func (r *PlaceholderReplacer) Commit(raw string) string {
 	l := len(r.kv)
 	if l == 0 {
