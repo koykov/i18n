@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/koykov/byteptr"
+	"github.com/koykov/entry"
 	"github.com/koykov/fastconv"
 	"github.com/koykov/hash"
 	"github.com/koykov/policy"
@@ -76,8 +77,8 @@ func (db *DB) Set(key, translation string) error {
 }
 
 // Lock-free inner setter.
-func (db *DB) setLF(hkey uint64, t9n string) entry {
-	var e entry
+func (db *DB) setLF(hkey uint64, t9n string) entry.Entry64 {
+	var e entry.Entry64
 	if e = db.index.get(hkey); e == 0 {
 		// Save new translation.
 		offset := len(db.buf)
@@ -144,11 +145,11 @@ func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer)
 
 // Lock-free inner getter.
 func (db *DB) getLF(hkey uint64, count int) string {
-	var e entry
+	var e entry.Entry64
 	if e = db.index.get(hkey); e == 0 {
 		return ""
 	}
-	lo, hi := e.decode()
+	lo, hi := e.Decode()
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
 		var i int
 		_ = rules[len(rules)-1]
@@ -167,11 +168,11 @@ func (db *DB) getLF(hkey uint64, count int) string {
 
 // Get raw translation including all plural formula rules.
 func (db *DB) getRawLF(hkey uint64) string {
-	var e entry
+	var e entry.Entry64
 	if e = db.index.get(hkey); e == 0 {
 		return ""
 	}
-	lo, hi := e.decode()
+	lo, hi := e.Decode()
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
 		bp := byteptr.Byteptr{}
 		bp.TakeAddr(db.buf).SetOffset(rules[0].rp.Offset())
@@ -251,7 +252,7 @@ func (db *DB) txnIndir() *txn {
 }
 
 // Create new entry from translation saved in buffer with length ln by offset off.
-func (db *DB) makeEntry(off, ln int) entry {
+func (db *DB) makeEntry(off, ln int) entry.Entry64 {
 	lo, hi := len(db.rules), len(db.rules)
 	s := db.buf[off : off+ln]
 	var nextPipe, offPipe, offFormula, lenPipe int
@@ -297,15 +298,15 @@ func (db *DB) makeEntry(off, ln int) entry {
 		}
 	}
 
-	var e entry
-	e.encode(uint32(lo), uint32(hi))
+	var e entry.Entry64
+	e.Encode(uint32(lo), uint32(hi))
 	return e
 }
 
 // Update entry e with t9n value.
 //
 // If possible new translation will be write over old space.
-func (db *DB) updateEntry(e *entry, t9n string) entry {
+func (db *DB) updateEntry(e *entry.Entry64, t9n string) entry.Entry64 {
 	var pc, offPipe, nextPipe, rawOff, rawLen int
 	s := fastconv.S2B(t9n)
 	// Get rules count in new translation.
@@ -319,7 +320,7 @@ func (db *DB) updateEntry(e *entry, t9n string) entry {
 
 	// Get length of old raw translation.
 	var rules []rule
-	lo, hi := e.decode()
+	lo, hi := e.Decode()
 	if rules = db.rules[lo:hi]; len(rules) > 0 {
 		_ = rules[len(rules)-1]
 		rawOff = rules[0].rp.Offset()
@@ -342,7 +343,7 @@ func (db *DB) updateEntry(e *entry, t9n string) entry {
 		db.makeEntry(rawOff, len(t9n))
 		copy(db.rules[lo:hi], db.rules[rulesOff:])
 		db.rules = db.rules[:rulesOff]
-		e.encode(lo, lo+uint32(pc))
+		e.Encode(lo, lo+uint32(pc))
 		return *e
 	}
 }

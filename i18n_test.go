@@ -64,13 +64,13 @@ func TestIO(t *testing.T) {
 
 		hkey := db.hasher.Sum64("key1")
 		e := db.setLF(hkey, "Nunc lacinia, purus finibus consectetur ullamcorper, nisi elit laoreet augue, vitae tincidunt tellus velit sit amet arcu.")
-		lo, hi = e.decode()
+		lo, hi = e.Decode()
 		assertLH(t, lo, hi, 3, 4)
 
 		t9n := "Quisque sit amet viverra ligula. Praesent sagittis, sapien ut rutrum porttitor, dolor ligula accumsan velit, ut lacinia tellus tellus nec tortor."
 		hkey = db.hasher.Sum64("key2")
 		e = db.setLF(hkey, t9n)
-		lo, hi = e.decode()
+		lo, hi = e.Decode()
 		assertLH(t, lo, hi, 1, 2)
 		assertT9n(t, db, "key2", t9n)
 	})
@@ -84,14 +84,14 @@ func TestIO(t *testing.T) {
 
 		hkey := db.hasher.Sum64("key1")
 		e := db.setLF(hkey, "{0} There are none|{1} There is one|[2,*] There are :count")
-		lo, hi = e.decode()
+		lo, hi = e.Decode()
 		assertLH(t, lo, hi, 7, 10)
 		assertT9nPlural(t, db, "key1", "There is one", 1)
 
 		t9n := "{0} There are none|{1} There is one|[2,*] There are :count"
 		hkey = db.hasher.Sum64("key2")
 		e = db.setLF(hkey, t9n)
-		lo, hi = e.decode()
+		lo, hi = e.Decode()
 		assertLH(t, lo, hi, 2, 5)
 		assertT9nPlural(t, db, "key2", "There is one", 1)
 		assertT9nPlural(t, db, "key2", "There are :count", 10)
