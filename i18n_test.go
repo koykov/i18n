@@ -36,7 +36,7 @@ func TestIO(t *testing.T) {
 		db.SetPolicy(policy.Locked)
 		for i := int64(0); i < entries; i++ {
 			buf = strconv.AppendInt(buf[:3], i, 10)
-			db.Set(fastconv.B2S(buf), "Hello there!")
+			_ = db.Set(fastconv.B2S(buf), "Hello there!")
 		}
 		db.SetPolicy(policy.LockFree)
 
@@ -56,9 +56,9 @@ func TestIO(t *testing.T) {
 	t.Run("100K", func(t *testing.T) { testIO(t, 100000) })
 	t.Run("overwrite", func(t *testing.T) {
 		db, _ := New(fnv.Hasher{})
-		db.Set("key1", "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
-		db.Set("key2", "Aenean congue quis nisl ut vulputate. Sed lacus dolor, tempor nec elit sit amet, congue dapibus purus. Pellentesque a lectus vel leo finibus scelerisque.")
-		db.Set("key3", "Aliquam blandit mauris mauris, eget bibendum lacus tempus non. Duis orci leo, sagittis sed lorem eu, pulvinar elementum leo.")
+		_ = db.Set("key1", "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
+		_ = db.Set("key2", "Aenean congue quis nisl ut vulputate. Sed lacus dolor, tempor nec elit sit amet, congue dapibus purus. Pellentesque a lectus vel leo finibus scelerisque.")
+		_ = db.Set("key3", "Aliquam blandit mauris mauris, eget bibendum lacus tempus non. Duis orci leo, sagittis sed lorem eu, pulvinar elementum leo.")
 
 		var lo, hi uint32
 
@@ -76,9 +76,9 @@ func TestIO(t *testing.T) {
 	})
 	t.Run("overwrite_plural", func(t *testing.T) {
 		db, _ := New(fnv.Hasher{})
-		db.Set("key1", "There is one apple|There are many apples")
-		db.Set("key2", "{0} There are none|[1,19] There are some|[20,*] There are many")
-		db.Set("key3", "{1} :value minute ago|[2,*] :value minutes ago")
+		_ = db.Set("key1", "There is one apple|There are many apples")
+		_ = db.Set("key2", "{0} There are none|[1,19] There are some|[20,*] There are many")
+		_ = db.Set("key3", "{1} :value minute ago|[2,*] :value minutes ago")
 
 		var lo, hi uint32
 
@@ -110,10 +110,10 @@ func TestPlural(t *testing.T) {
 
 	db, _ := New(fnv.Hasher{})
 	db.SetPolicy(policy.Locked)
-	db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
-	db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
-	db.Set("en.h3.army_size", "[1,5] Few|[5,10] Several|[10,20] Pack|[20,50] Lots|[50,100] Horde|[100,250] Throng|[250,500] Swarm|[500,1000] Zounds|[1000,*] Legion")
-	db.Set("ru.user.bag.apples", "[*,0] У вас проблемы с математикой|{0} У вас нет яблок|{1} У вас !count яблоко|[2,5] У вас !count яблока|[5,21] У вас !count яблок|{21} У вас !count яблоко|[22,25] У вас !count яблока|[25,*] У вас много яблок")
+	_ = db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
+	_ = db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
+	_ = db.Set("en.h3.army_size", "[1,5] Few|[5,10] Several|[10,20] Pack|[20,50] Lots|[50,100] Horde|[100,250] Throng|[250,500] Swarm|[500,1000] Zounds|[1000,*] Legion")
+	_ = db.Set("ru.user.bag.apples", "[*,0] У вас проблемы с математикой|{0} У вас нет яблок|{1} У вас !count яблоко|[2,5] У вас !count яблока|[5,21] У вас !count яблок|{21} У вас !count яблоко|[22,25] У вас !count яблока|[25,*] У вас много яблок")
 	db.SetPolicy(policy.LockFree)
 
 	t.Run("en.simple[1]", func(t *testing.T) { testPlural(t, db, "en.user.bag.apples_flag", "", 1, "You have one apple") })
@@ -151,7 +151,7 @@ func BenchmarkIO(b *testing.B) {
 		db.SetPolicy(policy.Locked)
 		for i := int64(0); i < entries; i++ {
 			buf = strconv.AppendInt(buf[:3], i, 10)
-			db.Set(fastconv.B2S(buf), "Hello there!")
+			_ = db.Set(fastconv.B2S(buf), "Hello there!")
 		}
 		db.SetPolicy(policy.LockFree)
 
@@ -193,10 +193,10 @@ func BenchmarkPlural(b *testing.B) {
 
 	db, _ := New(fnv.Hasher{})
 	db.SetPolicy(policy.Locked)
-	db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
-	db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
-	db.Set("en.h3.army_size", "[1,5] Few|[5,10] Several|[10,20] Pack|[20,50] Lots|[50,100] Horde|[100,250] Throng|[250,500] Swarm|[500,1000] Zounds|[1000,*] Legion")
-	db.Set("ru.user.bag.apples", "[*,0] У вас проблемы с математикой|{0} У вас нет яблок|{1} У вас !count яблоко|[2,5] У вас !count яблока|[5,21] У вас !count яблок|{21} У вас !count яблоко|[22,25] У вас !count яблока|[25,*] У вас много яблок")
+	_ = db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
+	_ = db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
+	_ = db.Set("en.h3.army_size", "[1,5] Few|[5,10] Several|[10,20] Pack|[20,50] Lots|[50,100] Horde|[100,250] Throng|[250,500] Swarm|[500,1000] Zounds|[1000,*] Legion")
+	_ = db.Set("ru.user.bag.apples", "[*,0] У вас проблемы с математикой|{0} У вас нет яблок|{1} У вас !count яблоко|[2,5] У вас !count яблока|[5,21] У вас !count яблок|{21} У вас !count яблоко|[22,25] У вас !count яблока|[25,*] У вас много яблок")
 	db.SetPolicy(policy.LockFree)
 
 	b.Run("en.simple[1]", func(b *testing.B) { benchPlural(b, db, "en.user.bag.apples_flag", "", 1, "You have one apple") })
