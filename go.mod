@@ -3,11 +3,11 @@ module github.com/koykov/i18n
 go 1.16
 
 require (
-	github.com/koykov/batch_replace v0.0.0-20211101214815-fb2bcb7a1b3f
-	github.com/koykov/bytealg v0.0.0-20220528213442-ac92b7cc2f07
-	github.com/koykov/byteptr v0.0.0-20210620190848-e0b56dd286d9
-	github.com/koykov/entry v0.0.0-20220728194924-2e90bd5a85d6
-	github.com/koykov/fastconv v0.0.0-20211028200057-f6897ace3bc2
-	github.com/koykov/hash v0.0.0-20211114213030-b12f4a779e5d
-	github.com/koykov/policy v0.0.0-20211205213434-fe65faba0cab
+	github.com/koykov/batch_replace v1.1.0
+	github.com/koykov/bytealg v1.0.1
+	github.com/koykov/byteptr v1.0.0
+	github.com/koykov/entry v1.0.1
+	github.com/koykov/fastconv v1.0.0
+	github.com/koykov/hash v1.0.0
+	github.com/koykov/policy v1.0.0
 )
