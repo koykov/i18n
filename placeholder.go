@@ -39,7 +39,7 @@ func (r *PlaceholderReplacer) AddKV(key, value string) *PlaceholderReplacer {
 func (r *PlaceholderReplacer) AddSolidKV(kv string) *PlaceholderReplacer {
 	offset, i := 0, 0
 loop:
-	if i = bytealg.IndexAtStr(kv, ":", offset); i == -1 {
+	if i = bytealg.IndexAt[string](kv, ":", offset); i == -1 {
 		return r
 	}
 	if i > 0 && kv[i-1] == '\\' {
