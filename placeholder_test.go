@@ -4,14 +4,11 @@ import (
 	"testing"
 
 	"github.com/koykov/hash/fnv"
-	"github.com/koykov/policy"
 )
 
 func TestPlaceholderReplacer(t *testing.T) {
 	db, _ := New(fnv.Hasher{})
-	db.SetPolicy(policy.Locked)
-	db.Set("en.user.balance", "Balance of !user: !val !cur")
-	db.SetPolicy(policy.LockFree)
+	_ = db.Set("en.user.balance", "Balance of !user: !val !cur")
 
 	repl := PlaceholderReplacer{}
 	repl.AddKV("!user", "John Ruth").
@@ -28,9 +25,7 @@ func BenchmarkPlaceholderReplacer(b *testing.B) {
 	origin, expect := "Balance of !user: !val !cur", "Balance of John Ruth: 8000 USD"
 
 	db, _ := New(fnv.Hasher{})
-	db.SetPolicy(policy.Locked)
-	db.Set("en.user.balance", origin)
-	db.SetPolicy(policy.LockFree)
+	_ = db.Set("en.user.balance", origin)
 	repl := PlaceholderReplacer{}
 
 	b.ResetTimer()

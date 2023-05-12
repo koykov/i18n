@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"math"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/koykov/entry"
 	"github.com/koykov/fastconv"
 	"github.com/koykov/hash"
-	"github.com/koykov/policy"
 )
 
 const (
@@ -21,10 +21,11 @@ const (
 
 // DB is an i18n database implementation.
 type DB struct {
-	policy.RWLock
 	status uint32
 	// Keys hasher.
 	hasher hash.Hasher
+
+	mux sync.RWMutex
 	// Translations index.
 	index index
 	// Rules storage.
@@ -63,8 +64,8 @@ func (db *DB) Set(key, translation string) error {
 		return nil
 	}
 
-	db.Lock()
-	defer db.Unlock()
+	db.mux.Lock()
+	defer db.mux.Unlock()
 	if txn := db.txnIndir(); txn != nil {
 		// Save translation to transaction.
 		txn.set(key, translation)
@@ -125,9 +126,9 @@ func (db *DB) GetPluralWR(key, def string, count int, repl *PlaceholderReplacer)
 	}
 	hkey := db.hasher.Sum64(key)
 
-	db.RLock()
+	db.mux.RLock()
 	raw := db.getLF(hkey, count)
-	db.RUnlock()
+	db.mux.RUnlock()
 
 	if len(raw) == 0 {
 		raw = def
@@ -219,12 +220,10 @@ func (db *DB) Commit() {
 		if err := db.checkStatus(); err != nil {
 			return
 		}
-		db.SetPolicy(policy.Locked)
-		db.Lock()
+		db.mux.Lock()
 		txn.commit()
 		db.txn = nil
-		db.Unlock()
-		db.SetPolicy(policy.LockFree)
+		db.mux.Unlock()
 		txnP.put(txn)
 	}
 }
@@ -234,13 +233,11 @@ func (db *DB) Reset() {
 	if err := db.checkStatus(); err != nil {
 		return
 	}
-	db.SetPolicy(policy.Locked)
-	db.Lock()
+	db.mux.Lock()
 	db.index.reset()
 	db.rules = db.rules[:0]
 	db.buf = db.buf[:0]
-	db.Unlock()
-	db.SetPolicy(policy.LockFree)
+	db.mux.Unlock()
 }
 
 // Indirect transaction from raw pointer.
