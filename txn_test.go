@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/koykov/fastconv"
+	"github.com/koykov/byteconv"
 	"github.com/koykov/hash/fnv"
 )
 
@@ -14,7 +14,7 @@ func TestTXN(t *testing.T) {
 	db, _ := New(fnv.Hasher{})
 	for i := 0; i < 10; i++ {
 		buf = strconv.AppendInt(buf[:3], int64(i), 10)
-		db.Set(fastconv.B2S(buf), "foo bar")
+		db.Set(byteconv.B2S(buf), "foo bar")
 	}
 
 	db.BeginTXN()
@@ -24,7 +24,7 @@ func TestTXN(t *testing.T) {
 			translation = "foo bar"
 		}
 		buf = strconv.AppendInt(buf[:3], int64(i), 10)
-		db.Set(fastconv.B2S(buf), translation)
+		db.Set(byteconv.B2S(buf), translation)
 	}
 
 	txn := (*txn)(db.txn)
@@ -38,7 +38,7 @@ func TestTXN(t *testing.T) {
 	db.Commit()
 
 	buf = strconv.AppendInt(buf[:3], 12, 10)
-	s := db.Get(fastconv.B2S(buf), "")
+	s := db.Get(byteconv.B2S(buf), "")
 	if s != "qwerty" {
 		t.Error("db updated entry mismatch, need qwerty got", s)
 	}

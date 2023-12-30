@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/koykov/byteconv"
 	"github.com/koykov/byteptr"
 	"github.com/koykov/entry"
-	"github.com/koykov/fastconv"
 	"github.com/koykov/hash"
 )
 
@@ -305,7 +305,7 @@ func (db *DB) makeEntry(off, ln int) entry.Entry64 {
 // If possible new translation will be write over old space.
 func (db *DB) updateEntry(e *entry.Entry64, t9n string) entry.Entry64 {
 	var pc, offPipe, nextPipe, rawOff, rawLen int
-	s := fastconv.S2B(t9n)
+	s := byteconv.S2B(t9n)
 	// Get rules count in new translation.
 	for pc = 0; ; pc++ {
 		if nextPipe = db.scanUnescByte(s, '|', offPipe); nextPipe == -1 {
@@ -363,7 +363,7 @@ func (db *DB) scanUnescByte(s []byte, b byte, offset int) int {
 func (db *DB) checkCB(p []byte, off int) (lo int32, offCBE int, ok bool) {
 	if offCBE = db.scanUnescByte(p, '}', off); offCBE != -1 {
 		if raw := p[off:offCBE]; len(raw) > 0 {
-			if lo64, err := strconv.ParseInt(fastconv.B2S(raw), 10, 32); err == nil {
+			if lo64, err := strconv.ParseInt(byteconv.B2S(raw), 10, 32); err == nil {
 				if p[offCBE+1] == ' ' {
 					offCBE += 2
 				} else {
@@ -393,14 +393,14 @@ func (db *DB) checkQB(p []byte, off int) (lo int32, hi int32, offQBE int, ok boo
 			ok = true
 			if bytes.Equal(rawLo, inf) {
 				lo = math.MinInt32
-			} else if lo64, err := strconv.ParseInt(fastconv.B2S(rawLo), 10, 32); err == nil {
+			} else if lo64, err := strconv.ParseInt(byteconv.B2S(rawLo), 10, 32); err == nil {
 				lo = int32(lo64)
 			} else {
 				ok = false
 			}
 			if bytes.Equal(rawHi, inf) {
 				hi = math.MaxInt32
-			} else if hi64, err := strconv.ParseInt(fastconv.B2S(rawHi), 10, 32); err == nil {
+			} else if hi64, err := strconv.ParseInt(byteconv.B2S(rawHi), 10, 32); err == nil {
 				hi = int32(hi64)
 			} else {
 				ok = false
