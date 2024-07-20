@@ -36,10 +36,6 @@ type DB struct {
 	txn unsafe.Pointer
 }
 
-var (
-	inf = []byte("*")
-)
-
 // New makes new DB instance with given hasher.
 func New(hasher hash.Hasher) (*DB, error) {
 	if hasher == nil {
@@ -416,3 +412,5 @@ func (db *DB) checkStatus() error {
 	}
 	return nil
 }
+
+var inf = []byte("*")

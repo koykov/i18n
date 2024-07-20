@@ -1,19 +1,30 @@
 # Internationalization
 
-Simple i18n database.
+Simple i18n database. Localization supports by using locale prefixes in keys.
 
 ## Usage
 
 ```go
 db := i18n.New(fnv.Hasher{})
-db.SetPolicy(policy.Locked)
 
 db.Set("en.messages.welcome", "Hello there!")
 db.Set("ru.messages.welcome", "Привет!")
 
-db.SetPolicy(policy.LockFree)
+fmt.Println(db.Get("en.messages.welcome")) // Hello there!
+```
 
-fmt.Println(db.Get("en.messages.welcome"))
+## Placeholders
+
+```go
+db, _ := New(fnv.Hasher{})
+_ = db.Set("en.user.balance", "Balance of !user: !val !cur")
+
+repl := PlaceholderReplacer{}
+repl.AddKV("!user", "John Ruth").
+    AddSolidKV("!val:8000").
+    AddKV("!cur", "USD")
+
+println(db.GetWR("en.user.balance", "", &repl)) // Balance of John Ruth: 8000 USD
 ```
 
 ## Pluralization
