@@ -23,7 +23,7 @@ const (
 type DB struct {
 	status uint32
 	// Keys hasher.
-	hasher hash.Hasher
+	hasher hash.Hasher[string]
 
 	mux sync.RWMutex
 	// Translations index.
@@ -37,7 +37,7 @@ type DB struct {
 }
 
 // New makes new DB instance with given hasher.
-func New(hasher hash.Hasher) (*DB, error) {
+func New(hasher hash.Hasher[string]) (*DB, error) {
 	if hasher == nil {
 		return nil, ErrNoHasher
 	}
@@ -153,7 +153,7 @@ func (db *DB) getLF(hkey uint64, count int) string {
 	loop:
 		rule := rules[i]
 		if rule.check(count) {
-			return rule.bp.TakeAddr(db.buf).String()
+			return rule.bp.TakeAddress(db.buf).String()
 		}
 		i++
 		if i < len(rules) {
@@ -172,7 +172,7 @@ func (db *DB) getRawLF(hkey uint64) string {
 	lo, hi := e.Decode()
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
 		bp := byteptr.Byteptr{}
-		bp.TakeAddr(db.buf).SetOffset(rules[0].rp.Offset())
+		bp.TakeAddress(db.buf).SetOffset(rules[0].rp.Offset())
 		var i, l int
 		_ = rules[len(rules)-1]
 	loop:
@@ -183,7 +183,7 @@ func (db *DB) getRawLF(hkey uint64) string {
 			goto loop
 		}
 		bp.SetLen(l)
-		return bp.TakeAddr(db.buf).String()
+		return bp.TakeAddress(db.buf).String()
 	}
 	return ""
 }

@@ -63,13 +63,13 @@ func (r *PlaceholderReplacer) Commit(raw string) string {
 	if l == 0 {
 		return raw
 	}
-	r.br.SetSrcStr(raw)
+	r.br.SetSourceString(raw)
 	_ = r.kv[l-1]
 	for i := 0; i < l; i++ {
 		kv := &r.kv[i]
-		r.br.S2S(kv.k.TakeAddr(r.buf).String(), kv.v.TakeAddr(r.buf).String())
+		r.br.S2S(kv.k.TakeAddress(r.buf).String(), kv.v.TakeAddress(r.buf).String())
 	}
-	return r.br.CommitStr()
+	return r.br.CommitString()
 }
 
 // Reset all internal data.

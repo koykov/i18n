@@ -56,7 +56,7 @@ func (t *txn) commit() {
 }
 
 // Get count of collected records.
-func (t txn) size() int {
+func (t *txn) size() int {
 	return len(t.log)
 }
 

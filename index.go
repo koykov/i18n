@@ -16,8 +16,8 @@ func (i *index) set(key uint64, lo, hi uint32) {
 }
 
 // Get entry by given key.
-func (i index) get(key uint64) entry.Entry64 {
-	if e, ok := i[key]; ok {
+func (i *index) get(key uint64) entry.Entry64 {
+	if e, ok := (*i)[key]; ok {
 		return e
 	}
 	return 0
