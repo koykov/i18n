@@ -14,7 +14,7 @@ func TestTXN(t *testing.T) {
 	db, _ := New(fnv.Hasher{})
 	for i := 0; i < 10; i++ {
 		buf = strconv.AppendInt(buf[:3], int64(i), 10)
-		db.Set(byteconv.B2S(buf), "foo bar")
+		_ = db.Set(byteconv.B2S(buf), "foo bar")
 	}
 
 	db.BeginTXN()
@@ -24,7 +24,7 @@ func TestTXN(t *testing.T) {
 			translation = "foo bar"
 		}
 		buf = strconv.AppendInt(buf[:3], int64(i), 10)
-		db.Set(byteconv.B2S(buf), translation)
+		_ = db.Set(byteconv.B2S(buf), translation)
 	}
 
 	txn := (*txn)(db.txn)
