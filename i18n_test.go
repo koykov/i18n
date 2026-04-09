@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/koykov/byteconv"
-	"github.com/koykov/hash/fnv"
+	"github.com/koykov/hash/xxhash"
 )
 
 func assertLH(t *testing.T, lo, hi, loE, hiE uint32) {
@@ -31,7 +31,7 @@ func assertT9nPlural(t *testing.T, db *DB, key, expect string, count int) {
 func TestIO(t *testing.T) {
 	testIO := func(t *testing.T, entries int64) {
 		buf := []byte("en.")
-		db, _ := New(fnv.Hasher{})
+		db, _ := New(xxhash.Hasher64[string]{})
 		for i := int64(0); i < entries; i++ {
 			buf = strconv.AppendInt(buf[:3], i, 10)
 			_ = db.Set(byteconv.B2S(buf), "Hello there!")
@@ -52,7 +52,7 @@ func TestIO(t *testing.T) {
 	t.Run("10K", func(t *testing.T) { testIO(t, 10000) })
 	t.Run("100K", func(t *testing.T) { testIO(t, 100000) })
 	t.Run("overwrite", func(t *testing.T) {
-		db, _ := New(fnv.Hasher{})
+		db, _ := New(xxhash.Hasher64[string]{})
 		_ = db.Set("key1", "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
 		_ = db.Set("key2", "Aenean congue quis nisl ut vulputate. Sed lacus dolor, tempor nec elit sit amet, congue dapibus purus. Pellentesque a lectus vel leo finibus scelerisque.")
 		_ = db.Set("key3", "Aliquam blandit mauris mauris, eget bibendum lacus tempus non. Duis orci leo, sagittis sed lorem eu, pulvinar elementum leo.")
@@ -72,7 +72,7 @@ func TestIO(t *testing.T) {
 		assertT9n(t, db, "key2", t9n)
 	})
 	t.Run("overwrite_plural", func(t *testing.T) {
-		db, _ := New(fnv.Hasher{})
+		db, _ := New(xxhash.Hasher64[string]{})
 		_ = db.Set("key1", "There is one apple|There are many apples")
 		_ = db.Set("key2", "{0} There are none|[1,19] There are some|[20,*] There are many")
 		_ = db.Set("key3", "{1} :value minute ago|[2,*] :value minutes ago")
@@ -105,7 +105,7 @@ func TestPlural(t *testing.T) {
 		}
 	}
 
-	db, _ := New(fnv.Hasher{})
+	db, _ := New(xxhash.Hasher64[string]{})
 	_ = db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
 	_ = db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
 	_ = db.Set("en.h3.army_size", "[1,5] Few|[5,10] Several|[10,20] Pack|[20,50] Lots|[50,100] Horde|[100,250] Throng|[250,500] Swarm|[500,1000] Zounds|[1000,*] Legion")
@@ -142,7 +142,7 @@ func TestPlural(t *testing.T) {
 func BenchmarkIO(b *testing.B) {
 	benchIO := func(b *testing.B, entries int64) {
 		buf := []byte("en.")
-		db, _ := New(fnv.Hasher{})
+		db, _ := New(xxhash.Hasher64[string]{})
 		for i := int64(0); i < entries; i++ {
 			buf = strconv.AppendInt(buf[:3], i, 10)
 			_ = db.Set(byteconv.B2S(buf), "Hello there!")
@@ -184,7 +184,7 @@ func BenchmarkPlural(b *testing.B) {
 		}
 	}
 
-	db, _ := New(fnv.Hasher{})
+	db, _ := New(xxhash.Hasher64[string]{})
 	_ = db.Set("en.user.bag.apples_flag", "You have one apple|You have many apples")
 	_ = db.Set("en.user.bag.apples", "You have !count apple|You have !count apples")
 	_ = db.Set("en.h3.army_size", "[1,5] Few|[5,10] Several|[10,20] Pack|[20,50] Lots|[50,100] Horde|[100,250] Throng|[250,500] Swarm|[500,1000] Zounds|[1000,*] Legion")

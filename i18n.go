@@ -92,7 +92,7 @@ func (db *DB) setLF(hkey uint64, t9n string) entry.Entry64 {
 
 // Get returns a translation of key.
 //
-// If translation doesn't exists, def will be used instead.
+// If translation doesn't exist, def will be used instead.
 func (db *DB) Get(key, def string) string {
 	return db.GetPluralWR(key, def, 1, nil)
 }
@@ -148,16 +148,12 @@ func (db *DB) getLF(hkey uint64, count int) string {
 	}
 	lo, hi := e.Decode()
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
-		var i int
 		_ = rules[len(rules)-1]
-	loop:
-		rule := rules[i]
-		if rule.check(count) {
-			return rule.bp.TakeAddress(db.buf).String()
-		}
-		i++
-		if i < len(rules) {
-			goto loop
+		for i := 0; i < len(rules); i++ {
+			r := rules[i]
+			if r.check(count) {
+				return r.bp.TakeAddress(db.buf).String()
+			}
 		}
 	}
 	return ""
@@ -173,14 +169,11 @@ func (db *DB) getRawLF(hkey uint64) string {
 	if rules := db.rules[lo:hi]; len(rules) > 0 {
 		bp := byteptr.Byteptr{}
 		bp.TakeAddress(db.buf).SetOffset(rules[0].rp.Offset())
-		var i, l int
+		var l int
 		_ = rules[len(rules)-1]
-	loop:
-		rule := rules[i]
-		l += rule.rp.Len()
-		i++
-		if i < len(rules) {
-			goto loop
+		for i := 0; i < len(rules); i++ {
+			r := rules[i]
+			l += r.rp.Len()
 		}
 		bp.SetLen(l)
 		return bp.TakeAddress(db.buf).String()
