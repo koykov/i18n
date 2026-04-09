@@ -3,11 +3,11 @@ package i18n
 import (
 	"testing"
 
-	"github.com/koykov/hash/fnv"
+	"github.com/koykov/hash/xxhash"
 )
 
 func TestPlaceholderReplacer(t *testing.T) {
-	db, _ := New(fnv.Hasher{})
+	db, _ := New(xxhash.Hasher64[string]{})
 	_ = db.Set("en.user.balance", "Balance of !user: !val !cur")
 
 	repl := PlaceholderReplacer{}
@@ -24,7 +24,7 @@ func TestPlaceholderReplacer(t *testing.T) {
 func BenchmarkPlaceholderReplacer(b *testing.B) {
 	origin, expect := "Balance of !user: !val !cur", "Balance of John Ruth: 8000 USD"
 
-	db, _ := New(fnv.Hasher{})
+	db, _ := New(xxhash.Hasher64[string]{})
 	_ = db.Set("en.user.balance", origin)
 	repl := PlaceholderReplacer{}
 
